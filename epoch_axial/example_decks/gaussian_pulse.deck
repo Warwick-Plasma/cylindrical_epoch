@@ -1,0 +1,63 @@
+begin:control
+  nx = 500
+  ny = 100
+
+  # Final time of simulation
+  t_end = 100 * femto
+
+  # Size of domain
+  x_min = 0
+  x_max = 20.0e-6
+  y_max = 5.0e-6
+
+  stdout_frequency = 10
+  n_mode = 2
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_max = open
+end:boundaries
+
+begin:constant
+    I_fwhm = 1.5e-6          # FWHM of laser intensity
+    I_peak_Wcm2 = 1.0e15     # 0.5 * eps0 * c * E_peak^2
+    las_lambda = 1.0e-6      # Laser wavelength
+    foc_dist = 10.0e-6        # Boundary to focal point distance
+end:constant
+
+begin:constant
+    las_k = 2.0 * pi / las_lambda    
+    w0 = I_fwhm / sqrt(2.0 * loge(2.0))                  # Beam Waist
+    ray_rang = pi * w0^2 / las_lambda                    # Rayleigh range
+    w_boundary = w0 * sqrt(1.0 + (foc_dist/ray_rang)^2)  # Waist on boundary
+    I_boundary = I_peak_Wcm2 * (w0 / w_boundary)^2       # Intens. on boundary
+    rad_curve = foc_dist * (1.0 + (ray_rang/foc_dist)^2) # Boundary curv. rad.
+    gouy = atan(-foc_dist/rad_curve)                     # Boundary Gouy shift
+end:constant
+
+begin:laser
+    boundary = x_min
+    intensity_w_cm2 = I_boundary
+    lambda = las_lambda
+    phase = las_k * y^2 / (2.0 * rad_curve) - gouy
+    profile = gauss(y, 0, w_boundary)
+end:laser
+
+begin:output
+  name = normal
+
+  # Simulated time between output dumps
+  dt_snapshot = 25 * femto
+
+  # Properties on grid
+  grid = always
+  exm = always
+  erm = always
+  etm = always
+  bxm = always
+  brm = always
+  btm = always
+end:output

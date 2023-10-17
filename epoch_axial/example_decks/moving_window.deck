@@ -1,0 +1,88 @@
+begin:control
+  nx = 500
+  ny = 100
+
+  # Final time of simulation
+  t_end = 200 * femto
+
+  # Size of domain
+  x_min = 0
+  x_max = 20.0e-6
+  y_max = 5.0e-6
+
+  stdout_frequency = 10
+  n_mode = 2
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_max = open
+end:boundaries
+
+
+begin:window
+  move_window = T
+  window_v_x = 2.0e8
+  window_start_time = 30.0e-15
+  window_stop_time = 100.0e-15
+  bc_x_min_after_move = simple_outflow
+  bc_x_max_after_move = simple_outflow
+end:window
+
+
+begin:constant
+  lambda0 = 1.0 * micron
+
+  # These two set the beam focus
+  w_0 = 0.9 * micron # Beam waist size
+  x_spot = 15 * micron # Distance from x_min to spot
+
+  # These are the parameters calculated for driving the laser
+  # These should not need to be modified
+  x_R = pi * w_0^2 / lambda0 # Rayleigh range
+  RC = x_spot * (1.0 + (x_R/x_spot)^2) # Radius of curvature on x_min
+  w_bnd = w_0 * sqrt( 1.0 + (x_spot/x_R)^2) # Spot size at x_min
+  gouy = atan(x_spot/x_R) # Gouy phase shift at x_min
+end:constant
+
+
+begin:laser
+  boundary = x_min
+  intensity_w_cm2 = 1.0e15
+  lambda = lambda0
+
+  phase = 2.0 * pi/ lambda0 * y^2 / (2.0 * RC) - gouy
+
+  profile = gauss(y,0,w_bnd)
+end:laser
+
+
+begin:species
+  name = Neutron
+  charge = 0
+  mass = 2000
+  npart = 2 * nx * ny
+  temperature = 0.5
+  density = 0.5 + sin(x/4.0e-6)^2
+  bc_y_max = open
+end:species
+
+
+begin:output
+  name = normal
+
+  # Simulated time between output dumps
+  dt_snapshot = 25 * femto
+
+  # Properties on grid
+  grid = always
+  exm = always
+  erm = always
+  etm = always
+  bxm = always
+  brm = always
+  btm = always
+  number_density = always
+end:output

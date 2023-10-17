@@ -1,0 +1,33 @@
+import os
+from distutils.core import setup, Extension
+import numpy
+
+# Remove environment variables that can break the build, if set incorrectly.
+# FIXME: The variable 'EXTRA_COMPILE_ARGS' may still break the installation in some cases,
+# if it is set in CMakeLists.txt and CMAKE_C_COMPILER differs from the one used to build
+# the Python interpreter.
+for key in ['CC', 'CFLAGS']:
+    if key in os.environ:
+        del os.environ[key]
+
+setup(
+    name='sdfpy',
+    version='1.0',
+    author='Keith Bennett',
+    author_email='K.Bennett@warwick.ac.uk',
+    url='http://github.com/keithbennett/SDF.git',
+    description='Python module for processing SDF files',
+    py_modules=['sdf_legacy'],
+    ext_modules=[
+        Extension(
+            'sdf',
+            [os.path.join("${CMAKE_CURRENT_SOURCE_DIR}", 'sdf_python.c')],
+            include_dirs=[numpy.get_include(), '.', '${SDFC_INCLUDE_DIR}'],
+            library_dirs=['${SDFC_LIB_DIR}'], libraries=['${SDFC}'],
+            extra_compile_args=['-O${OPT_LEVEL}', '-D_XOPEN_SOURCE=600']
+            + '@EXTRA_COMPILE_ARGS@'.replace(';', '\n').split(),
+            extra_link_args=['@EXTRA_LINK_ARGS@']
+        )
+    ],
+    package_dir={'': '${CMAKE_CURRENT_SOURCE_DIR}'}
+)

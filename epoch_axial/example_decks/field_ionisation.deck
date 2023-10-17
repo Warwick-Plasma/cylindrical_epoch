@@ -1,0 +1,69 @@
+begin:control
+  nx = 125
+  ny = 200
+
+  # Final time of simulation
+  t_end = 50.0e-15
+
+  # Size of domain
+  x_min = 0
+  x_max = 4.0e-6
+  y_max = 6.4e-6
+
+  npart = 1000 * (250.0e-9 / x_max) * nx * (125.0e-9 / y_max) * ny
+
+  stdout_frequency = 10
+  n_mode = 3
+  field_ionisation = T
+end:control
+
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = open
+  bc_y_max = open
+end:boundaries
+
+
+begin:laser
+  boundary = x_min
+  intensity_w_cm2 = 3.0e15
+  lambda = 0.8e-6
+  t_profile = 1.0
+  profile = 1.0
+end:laser
+
+
+begin:species
+  name = Carbon
+  charge = 0
+  mass = 12.0 * 1836.2
+  atomic_no = 6
+  frac = 1
+  density = if ( y lt 125e-9, 2.91e20, 0 )
+  density = if ( x gt 3.05e-6 and x lt 3.3e-6, density(Carbon), 0)
+  temperature = 0.0
+  ionise = T
+  ionise_limit = 3
+  unique_electron_species = T
+end:species
+
+
+begin:output
+  name = normal
+
+  # Simulated time between output dumps
+  dt_snapshot = 1.0e-15
+
+  # Properties on grid
+  grid = always
+  exm = always
+  erm = always
+  etm = always
+  bxm = always
+  brm = always
+  btm = always
+  
+  number_density = always + species
+  weight = always
+end:output
