@@ -136,6 +136,7 @@ CONTAINS
 #ifndef NO_PARTICLE_PROBES
     LOGICAL :: probes_for_species
     REAL(num) :: gamma_rel_m1
+    REAL(num) :: path_frac
 #endif
 #ifndef NO_TRACER_PARTICLES
     LOGICAL :: not_zero_current_species
@@ -236,6 +237,11 @@ CONTAINS
 #ifndef NO_PARTICLE_PROBES
       current_probe => species_list(ispecies)%attached_probes
       probes_for_species = ASSOCIATED(current_probe)
+#if defined(PARTICLE_ID) || defined(PARTICLE_ID4) 
+      IF (probes_for_species) THEN 
+        CALL generate_particle_ids(species_list(ispecies)%attached_list)
+      END IF
+#endif
 #endif
 #ifndef NO_TRACER_PARTICLES
       not_zero_current_species = .NOT. species_list(ispecies)%zero_current
@@ -680,15 +686,30 @@ CONTAINS
             IF (probe_energy > current_probe%ek_min) THEN
               IF (probe_energy < current_probe%ek_max) THEN
 
-                d_init  = SUM(current_probe%normal &
-                    * (current_probe%point - (/init_part_x, init_part_y/)))
-                d_final = SUM(current_probe%normal &
-                    * (current_probe%point - (/final_part_x, final_part_y/)))
+                d_init  = SUM(current_probe%normal * (current_probe%point &
+                    - (/init_part_x, init_part_y, init_part_z/)))
+                d_final = SUM(current_probe%normal * (current_probe%point &
+                    - (/final_part_x, final_part_y, final_part_z/)))
                 IF (d_final < 0.0_num .AND. d_init >= 0.0_num) THEN
                   ! this particle is wanted so copy it to the list associated
                   ! with this probe
                   ALLOCATE(particle_copy)
                   particle_copy = current
+                  ! Fraction of step until particle hits probe
+                  path_frac = SUM(current_probe%normal*(current_probe%point - &
+                      (/init_part_x,init_part_y,init_part_z/))) &
+                      /SUM(current_probe%normal * (/final_part_x-init_part_x, &
+                      final_part_y-init_part_y, final_part_z-init_part_z/))
+                  ! Position of particle on probe
+                  particle_copy%part_pos = path_frac * &
+                      (/final_part_x-init_part_x, &
+                      final_part_y-init_part_y, &
+                      final_part_z-init_part_z/) &
+                      + (/init_part_x, init_part_y, init_part_z/)
+#ifdef PROBE_TIME
+                  ! Note: time variable corresponds to (time at x_init)+0.5*dt
+                  particle_copy%probe_time = time + dt * (path_frac - 0.5_num)
+#endif
                   CALL add_particle_to_partlist(&
                       current_probe%sampled_particles, particle_copy)
                   NULLIFY(particle_copy)
@@ -760,7 +781,7 @@ CONTAINS
 
     ! Very simple photon pusher
     ! Properties of the current particle. Copy out of particle arrays for speed
-    REAL(num) :: delta_x, delta_y
+    REAL(num) :: delta_x, delta_y, delta_z
     INTEGER,INTENT(IN) :: ispecies
     TYPE(particle), POINTER :: current
     REAL(num) :: current_energy, dtfac, fac
@@ -769,15 +790,22 @@ CONTAINS
 #ifndef NO_PARTICLE_PROBES
     REAL(num) :: init_part_x, final_part_x
     REAL(num) :: init_part_y, final_part_y
+    REAL(num) :: init_part_z, final_part_z
     TYPE(particle_probe), POINTER :: current_probe
     TYPE(particle), POINTER :: particle_copy
     REAL(num) :: d_init, d_final
     LOGICAL :: probes_for_species
+    REAL(num) :: path_frac
 #endif
 
 #ifndef NO_PARTICLE_PROBES
     current_probe => species_list(ispecies)%attached_probes
     probes_for_species = ASSOCIATED(current_probe)
+#if defined(PARTICLE_ID) || defined(PARTICLE_ID4) 
+    IF (probes_for_species) THEN 
+      CALL generate_particle_ids(species_list(ispecies)%attached_list)
+    END IF
+#endif
 #endif
     dtfac = dt * c**2
 
@@ -792,14 +820,17 @@ CONTAINS
       fac = dtfac / current_energy
       delta_x = current%part_p(1) * fac
       delta_y = current%part_p(2) * fac
+      delta_z = current%part_p(3) * fac
 #ifndef NO_PARTICLE_PROBES
       init_part_x = current%part_pos(1)
       init_part_y = current%part_pos(2)
+      init_part_z = current%part_pos(3)
 #endif
-      current%part_pos = current%part_pos + (/delta_x, delta_y/)
+      current%part_pos = current%part_pos + (/delta_x, delta_y, delta_z/)
 #ifndef NO_PARTICLE_PROBES
       final_part_x = current%part_pos(1)
       final_part_y = current%part_pos(2)
+      final_part_z = current%part_pos(3)
 #endif
 
 #ifndef NO_PARTICLE_PROBES
@@ -816,15 +847,31 @@ CONTAINS
           IF (current_energy > current_probe%ek_min) THEN
             IF (current_energy < current_probe%ek_max) THEN
 
-              d_init  = SUM(current_probe%normal &
-                  * (current_probe%point - (/init_part_x, init_part_y/)))
-              d_final = SUM(current_probe%normal &
-                  * (current_probe%point - (/final_part_x, final_part_y/)))
+              d_init  = SUM(current_probe%normal * (current_probe%point &
+                  - (/init_part_x, init_part_y, init_part_z/)))
+              d_final = SUM(current_probe%normal * (current_probe%point &
+                  - (/final_part_x, final_part_y, final_part_z/)))
               IF (d_final < 0.0_num .AND. d_init >= 0.0_num) THEN
                 ! this particle is wanted so copy it to the list associated
                 ! with this probe
                 ALLOCATE(particle_copy)
                 particle_copy = current
+                ! Fraction of step until particle hits probe
+                path_frac = SUM(current_probe%normal*(current_probe%point - &
+                    (/init_part_x,init_part_y,init_part_z/))) &
+                    /SUM(current_probe%normal * (/final_part_x-init_part_x, &
+                    final_part_y-init_part_y, &
+                    final_part_z-init_part_z/))
+                ! Position of particle on probe
+                particle_copy%part_pos = path_frac * &
+                    (/final_part_x-init_part_x, &
+                    final_part_y-init_part_y, &
+                    final_part_z-init_part_z/) &
+                    + (/init_part_x,init_part_y,init_part_z/)
+#ifdef PROBE_TIME
+                ! Note: time variable corresponds to (time at x_init)+0.5*dt
+                particle_copy%probe_time = time + dt * (path_frac - 0.5_num)
+#endif
                 CALL add_particle_to_partlist(&
                     current_probe%sampled_particles, particle_copy)
                 NULLIFY(particle_copy)

@@ -268,6 +268,7 @@ MODULE constants
   INTEGER(i8), PARAMETER :: c_def_use_isatty = 2**24
   INTEGER(i8), PARAMETER :: c_def_use_mpi3 = 2**25
   INTEGER(i8), PARAMETER :: c_def_bremsstrahlung = 2**26
+  INTEGER(i8), PARAMETER :: c_def_probe_time = 2**27
 
   ! Stagger types
   INTEGER, PARAMETER :: c_stagger_ex = c_stagger_face_x
@@ -621,7 +622,8 @@ MODULE constants
   INTEGER, PARAMETER :: c_dump_jxm               = 78
   INTEGER, PARAMETER :: c_dump_jrm               = 79
   INTEGER, PARAMETER :: c_dump_jtm               = 80
-  INTEGER, PARAMETER :: num_vars_to_dump         = 80
+  INTEGER, PARAMETER :: c_dump_probe_time        = 81
+  INTEGER, PARAMETER :: num_vars_to_dump         = 81
 
   INTEGER, PARAMETER :: c_subset_random     = 1
   INTEGER, PARAMETER :: c_subset_gamma_min  = 2

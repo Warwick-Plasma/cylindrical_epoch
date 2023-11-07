@@ -1,0 +1,79 @@
+# Simulation of laser incident on electron beam.
+# Parameters set to create a photon count which is 10% of the electron number
+
+begin:control
+  nx = 300
+  ny = 300
+  nparticles = 100000
+  t_end = 50.0e-15
+  x_min = 0
+  x_max = 15.0e-6
+  y_max = 15.0e-6
+  n_mode = 2
+  stdout_frequency = 10
+end:control
+
+begin:qed
+  use_qed = T 
+  qed_start_time = 0
+  produce_photons = T
+  produce_pairs = F
+  photon_dynamics = T 
+end:qed
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = simple_laser
+  bc_y_max = open
+end:boundaries
+
+begin:laser
+  boundary = x_min
+  intensity_w_cm2 = 3.0e16
+  lambda = 1.0e-6
+  t_profile = 1.0
+  profile = 1.0
+end:laser
+
+begin:species
+  name = Electron
+  fraction = 1.0
+  number_density = if ((x gt (x_max - dx)) and (y lt 10.0e-6), 6.4e21, 0)
+  drift_x = -5.36e-18
+  identify:electron
+end:species
+
+begin:species
+  name = Photon
+  nparticles = 0
+  dump = T
+  identify:photon
+end:species
+
+begin:output
+  name = normal
+  dt_snapshot = t_end / 10
+  px = always
+  py = always
+  pz = always
+  particle_weight = always
+  grid = always
+  exm = always
+  erm = always
+  etm = always
+  bxm = always
+  brm = always
+  btm = always
+  number_density = always + species
+  particle_probes = always
+end:output
+
+begin:probe
+   name = photon_probe
+   point = (1.0e-6, 0.0, 0.0)
+   normal = (-1.0, 0.0, 0.0)
+   ek_min = 0.0
+   ek_max = -1.0
+   include_species:Photon
+   dumpmask = always
+end:probe

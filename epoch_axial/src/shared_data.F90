@@ -136,6 +136,9 @@ MODULE shared_data
 #ifdef BREMSSTRAHLUNG
     REAL(num) :: optical_depth_bremsstrahlung
 #endif
+#if defined(PROBE_TIME)
+    REAL(num) :: probe_time
+#endif
   END TYPE particle
 
   ! Data for migration between species
@@ -408,9 +411,9 @@ MODULE shared_data
 #ifndef NO_PARTICLE_PROBES
   TYPE particle_probe
     ! Arbitrary point on the plane
-    REAL(num), DIMENSION(c_ndims) :: point
+    REAL(num), DIMENSION(3) :: point
     ! The normal to the plane
-    REAL(num), DIMENSION(c_ndims) :: normal
+    REAL(num), DIMENSION(3) :: normal
     REAL(num) :: ek_min, ek_max
     CHARACTER(LEN=string_length) :: name
 

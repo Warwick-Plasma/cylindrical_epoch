@@ -38,11 +38,12 @@ CONTAINS
   PUBLIC :: probe_block_handle_element, probe_block_check
 
   TYPE(particle_probe), POINTER :: working_probe
-  REAL(num) :: point2(c_ndims)
+  REAL(num) :: point2(3), point3(3)
   LOGICAL :: got_name, got_point, got_normal
   INTEGER :: got_x
-  INTEGER, PARAMETER :: ndim = 4
-  CHARACTER(LEN=*), PARAMETER :: xs(ndim) = (/'x1', 'y1', 'x2', 'y2'/)
+  INTEGER, PARAMETER :: ndim = 9
+  CHARACTER(LEN=*), PARAMETER :: xs(ndim) = (/'x_tl', 'y_tl', 'z_tl', 'x_br', &
+      'y_br', 'z_br', 'x_tr', 'y_tr', 'z_tr'/)
 
 CONTAINS
 
@@ -76,7 +77,7 @@ CONTAINS
   SUBROUTINE probe_block_end
 
     LOGICAL :: discard
-    REAL(num), DIMENSION(c_ndims) :: r1
+    REAL(num), DIMENSION(3) :: r1, r2
     INTEGER :: io, iu, i, scount, sarr(ndim)
 
     IF (deck_state == c_ds_first) RETURN
@@ -114,8 +115,10 @@ CONTAINS
         ! The probe calculates the signed distance from a point to a plane
         ! using Hessian normal form
         r1 = point2 - working_probe%point
-        ! r1 (cross) z
-        working_probe%normal = (/ r1(2), -r1(1) /)
+        r2 = point3 - working_probe%point
+        ! r1 (cross) r2
+        working_probe%normal = (/r1(2)*r2(3) - r1(3)*r2(2), &
+            r1(3)*r2(1) - r1(1)*r2(3), r1(1)*r2(2) - r1(2)*r2(1)/)
 
         IF (SUM(ABS(working_probe%normal)) <= c_tiny) discard = .TRUE.
       END IF
@@ -195,27 +198,54 @@ CONTAINS
       RETURN
     END IF
 
-    IF (str_cmp(element, 'x1')) THEN
+    ! Top left
+    IF (str_cmp(element, 'x_tl')) THEN
       got_x = IOR(got_x,2**0)
       working_probe%point(1) = as_real_print(value, element, errcode)
       RETURN
     END IF
-
-    IF (str_cmp(element, 'y1')) THEN
+    IF (str_cmp(element, 'y_tl')) THEN
       got_x = IOR(got_x,2**1)
       working_probe%point(2) = as_real_print(value, element, errcode)
       RETURN
     END IF
-
-    IF (str_cmp(element, 'x2')) THEN
+    IF (str_cmp(element, 'z_tl')) THEN
       got_x = IOR(got_x,2**2)
-      point2(1) = as_real_print(value, element, errcode)
+      working_probe%point(3) = as_real_print(value, element, errcode)
       RETURN
     END IF
 
-    IF (str_cmp(element, 'y2')) THEN
+    ! Bottom right
+    IF (str_cmp(element, 'x_br')) THEN
       got_x = IOR(got_x,2**3)
+      point2(1) = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+    IF (str_cmp(element, 'y_br')) THEN
+      got_x = IOR(got_x,2**4)
       point2(2) = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+    IF (str_cmp(element, 'z_br')) THEN
+      got_x = IOR(got_x,2**5)
+      point2(3) = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+
+    ! Top right
+    IF (str_cmp(element, 'x_tr')) THEN
+      got_x = IOR(got_x,2**6)
+      point3(1) = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+    IF (str_cmp(element, 'y_tr')) THEN
+      got_x = IOR(got_x,2**7)
+      point3(2) = as_real_print(value, element, errcode)
+      RETURN
+    END IF
+    IF (str_cmp(element, 'z_tr')) THEN
+      got_x = IOR(got_x,2**8)
+      point3(3) = as_real_print(value, element, errcode)
       RETURN
     END IF
 

@@ -527,7 +527,9 @@ CONTAINS
     INTEGER :: ispecies
     TYPE(particle), POINTER :: current, next_pt
 
-    REAL(num) :: part_x, part_y
+    REAL(num) :: part_x_local, part_r_local
+    REAL(num) :: part_x, part_y, part_z, part_r
+    COMPLEX(num) :: exp_min_itheta
     REAL(num) :: part_ux, part_uy, part_uz
     REAL(num) :: dir_x, dir_y, dir_z
     REAL(num) :: eta, chi_val, part_e, gamma_rel, norm
@@ -541,15 +543,20 @@ CONTAINS
         current => species_list(ispecies)%attached_list%head
         DO WHILE(ASSOCIATED(current))
           ! Find eta at particle position
-          part_x  = current%part_pos(1) - x_grid_min_local
-          part_y  = current%part_pos(2) - y_grid_min_local
+          part_x = current%part_pos(1)
+          part_y = current%part_pos(2)
+          part_z = current%part_pos(3)
+          part_x_local = part_x - x_grid_min_local 
+          part_r = SQRT(part_y**2 + part_z**2)
+          part_r_local = part_r - y_grid_min_local
+          exp_min_itheta = (part_y - imagi * part_z) / part_r
           part_ux = current%part_p(1) / mc0
           part_uy = current%part_p(2) / mc0
           part_uz = current%part_p(3) / mc0
           gamma_rel = SQRT(part_ux**2 + part_uy**2 + part_uz**2 + 1.0_num)
 
-          eta = calculate_eta(part_x, part_y, part_ux, part_uy, &
-              part_uz, gamma_rel)
+          eta = calculate_eta(part_x_local, part_r_local, exp_min_itheta, &
+              part_ux, part_uy, part_uz, gamma_rel)
 
           current%optical_depth = &
               current%optical_depth - delta_optical_depth(eta, gamma_rel)
@@ -582,15 +589,20 @@ CONTAINS
         DO WHILE(ASSOCIATED(current))
           ! Current may be deleted
           next_pt => current%next
-          part_x  = current%part_pos(1) - x_grid_min_local
-          part_y  = current%part_pos(2) - y_grid_min_local
+          part_x = current%part_pos(1)
+          part_y = current%part_pos(2)
+          part_z = current%part_pos(3)
+          part_x_local = part_x - x_grid_min_local 
+          part_r = SQRT(part_y**2 + part_z**2)
+          part_r_local = part_r - y_grid_min_local
+          exp_min_itheta = (part_y - imagi * part_z) / part_r
           norm  = c / current%particle_energy
           dir_x = current%part_p(1) * norm
           dir_y = current%part_p(2) * norm
           dir_z = current%part_p(3) * norm
           part_e  = current%particle_energy / m0 / c**2
-          chi_val = calculate_chi(part_x, part_y, dir_x, dir_y, &
-              dir_z, part_e)
+          chi_val = calculate_chi(part_x_local, part_r_local, exp_min_itheta, &
+              dir_x, dir_y, dir_z, part_e)
 
           current%optical_depth = current%optical_depth &
               - delta_optical_depth_photon(chi_val, part_e)
@@ -658,18 +670,20 @@ CONTAINS
 
 
 
-  FUNCTION calculate_eta(part_x, part_y, part_ux, part_uy, part_uz, &
-      gamma_rel)
+  FUNCTION calculate_eta(part_x_local, part_r_local, exp_min_itheta, part_ux, &
+      part_uy, part_uz, gamma_rel)
 
     REAL(num) :: calculate_eta
-    REAL(num), INTENT(IN) :: part_x, part_y
+    REAL(num), INTENT(IN) :: part_x_local, part_r_local
+    COMPLEX(num) :: exp_min_itheta
     REAL(num), INTENT(IN) :: part_ux, part_uy, part_uz, gamma_rel
     REAL(num) :: e_at_part(3), b_at_part(3)
     REAL(num) :: beta_x, beta_y, beta_z
     REAL(num) :: flperp(3), i_e, tau0, roland_eta
     REAL(num) :: lambdac, coeff_eta, moduclip, moduclip2, u_dot_e
 
-    CALL field_at_particle(part_x, part_y, e_at_part, b_at_part)
+    CALL field_at_particle(part_x_local, part_r_local, exp_min_itheta, &
+        e_at_part, b_at_part)
 
     moduclip2 = MAX(part_ux**2 + part_uy**2 + part_uz**2, c_tiny)
     moduclip = SQRT(moduclip2)
@@ -711,15 +725,18 @@ CONTAINS
 
 
 
-  FUNCTION calculate_chi(part_x, part_y, dir_x, dir_y, dir_z, part_e)
+  FUNCTION calculate_chi(part_x_local, part_r_local, exp_min_itheta, dir_x, &
+      dir_y, dir_z, part_e)
 
     REAL(num) :: calculate_chi
-    REAL(num), INTENT(IN) :: part_x, part_y
+    REAL(num), INTENT(IN) :: part_x_local, part_r_local 
+    COMPLEX(num), INTENT(IN) :: exp_min_itheta
     REAL(num), INTENT(IN) :: dir_x, dir_y, dir_z, part_e
     REAL(num) :: e_at_part(3), b_at_part(3), q(3)
     REAL(num) :: e_dot_dir, calculate_chi_roland
 
-    CALL field_at_particle(part_x, part_y, e_at_part, b_at_part)
+    CALL field_at_particle(part_x_local, part_r_local, exp_min_itheta, &
+        e_at_part, b_at_part)
 
     e_dot_dir = e_at_part(1) * dir_x + e_at_part(2) * dir_y &
         + e_at_part(3) * dir_z
@@ -741,10 +758,12 @@ CONTAINS
 
 
 
-  SUBROUTINE field_at_particle(part_x, part_y, e_at_part, b_at_part)
+  SUBROUTINE field_at_particle(part_x_local, part_r_local, exp_min_itheta,&
+      e_at_part, b_at_part)
 
-    REAL(num), INTENT(IN) :: part_x, part_y
+    REAL(num), INTENT(IN) :: part_x_local, part_r_local
     REAL(num), INTENT(OUT) :: e_at_part(3), b_at_part(3)
+    COMPLEX(num), INTENT(IN) :: exp_min_itheta
 
     ! Contains the integer cell position of the particle in x, y, z
     INTEGER :: cell_x1, cell_x2, cell_y1, cell_y2
@@ -766,12 +785,11 @@ CONTAINS
     ! This is to deal with the grid stagger
     REAL(num), DIMENSION(sf_min:sf_max) :: hx, hy
     ! Temporary variables
-    INTEGER :: dcellx, dcelly
-    REAL(num) :: ex_part, ey_part, ez_part
-    REAL(num) :: bx_part, by_part, bz_part
+    INTEGER :: dcellx, dcelly, im
+    REAL(num) :: ex_part, ey_part, ez_part, er_part, et_part
+    REAL(num) :: bx_part, by_part, bz_part, br_part, bt_part
     REAL(num) :: part_r
-    COMPLEX(num) :: exp_min_itheta, exp_min_imtheta 
-    REAL(num) :: part_x_local, part_r_local
+    COMPLEX(num) :: exp_min_imtheta
     
     ! Particle weighting multiplication factor
 #ifdef PARTICLE_SHAPE_BSPLINE3
@@ -786,11 +804,11 @@ CONTAINS
 
     ! Grid cell position as a fraction.
 #ifdef PARTICLE_SHAPE_TOPHAT
-    cell_x_r = part_x / dx - 0.5_num
-    cell_y_r = part_y / dy - 0.5_num
+    cell_x_r = part_x_local / dx - 0.5_num
+    cell_y_r = part_r_local / dy - 0.5_num
 #else
-    cell_x_r = part_x / dx
-    cell_y_r = part_y / dy
+    cell_x_r = part_x_local / dx
+    cell_y_r = part_r_local / dy
 #endif
     ! Round cell position to nearest cell
     cell_x1 = FLOOR(cell_x_r + 0.5_num)
