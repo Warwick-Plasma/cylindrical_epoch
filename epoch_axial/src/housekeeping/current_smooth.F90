@@ -50,9 +50,9 @@ CONTAINS
 
     ! Implements strided compensated binomial filtering
 
-    CALL smooth_array(jx, smooth_its, smooth_comp_its, smooth_strides)
-    CALL smooth_array(jy, smooth_its, smooth_comp_its, smooth_strides)
-    CALL smooth_array(jz, smooth_its, smooth_comp_its, smooth_strides)
+    CALL smooth_mode_array(jxm, smooth_its, smooth_comp_its, smooth_strides)
+    CALL smooth_mode_array(jrm, smooth_its, smooth_comp_its, smooth_strides)
+    CALL smooth_mode_array(jtm, smooth_its, smooth_comp_its, smooth_strides)
 
   END SUBROUTINE smooth_current
 
@@ -139,5 +139,60 @@ CONTAINS
 #endif
 
   END SUBROUTINE smooth_array
+
+
+
+  SUBROUTINE smooth_mode_array(array, its, comp_its, stride)
+
+    COMPLEX(num), DIMENSION(1-jng:,1-jng:,0:), INTENT(INOUT) :: array
+    INTEGER, INTENT(IN) :: its
+    INTEGER, INTENT(IN) :: comp_its
+    INTEGER, INTENT(IN), DIMENSION(:), ALLOCATABLE :: stride
+    COMPLEX(num), DIMENSION(:,:,:), ALLOCATABLE :: wk_array
+    INTEGER :: ix, iy, im
+    INTEGER, DIMENSION(:), ALLOCATABLE :: stride_inner
+    INTEGER :: ng_l, it, istride, cstride
+    REAL(num) :: alpha, beta
+
+    IF (ALLOCATED(stride)) THEN
+      ALLOCATE(stride_inner(SIZE(stride)), SOURCE=stride)
+    ELSE
+      ALLOCATE(stride_inner(1), SOURCE=[1])
+    END IF
+
+    ng_l = MAX(sng, jng)
+    alpha = 0.5_num
+    beta = (1.0_num - alpha) * 0.25_num
+
+    ALLOCATE(wk_array(1-ng_l:nx+ng_l,1-ng_l:ny+ng_l,0:n_mode-1))
+
+    wk_array = 0.0_num
+    wk_array(1-jng:nx+jng,1-jng:ny+jng,:) = array(1-jng:nx+jng,1-jng:ny+jng,:)
+
+    DO it = 1, its + comp_its
+      DO istride = 1, SIZE(stride_inner)
+        CALL field_mode_bc(wk_array, ng_l)
+        cstride = stride_inner(istride)
+        DO im = 0, n_mode-1
+        DO iy = 1, ny
+        DO ix = 1, nx
+          array(ix,iy,im) = alpha * wk_array(ix,iy,im) &
+              + (wk_array(ix-cstride,iy,im) + wk_array(ix+cstride,iy,im) &
+              +  wk_array(ix,iy-cstride,im) + wk_array(ix,iy+cstride,im)) * beta
+        END DO
+        END DO
+        END DO
+        wk_array(1:nx,1:ny,:) = array(1:nx,1:ny,:)
+      END DO
+      IF (it > its) THEN
+        alpha = REAL(its, num) * 0.5_num + 1.0_num
+      END IF
+    END DO
+
+    array(1:nx,1:ny,:) = wk_array(1:nx,1:ny,:)
+
+    DEALLOCATE(wk_array)
+
+  END SUBROUTINE smooth_mode_array
 
 END MODULE current_smooth
