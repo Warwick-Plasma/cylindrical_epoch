@@ -1,0 +1,72 @@
+begin:control
+  nx = 128
+  ny = 10
+  npart = nx * ny * 128
+  t_end = 2.0e-11
+  x_min = 0
+  x_max = 5.50e-3
+  y_max = 5.0e-6
+  n_mode = 2
+  dt_multiplier = 0.8
+  stdout_frequency = 10
+end:control
+
+begin:bremsstrahlung
+  use_bremsstrahlung = T
+  start_time = 0
+  produce_photons = T
+  photon_energy_min = 0
+  photon_weight = 1.0
+  photon_dynamics = F
+end:bremsstrahlung
+
+begin:boundaries
+  bc_x_min = simple_laser
+  bc_x_max = simple_laser
+  bc_y_max = reflect
+end:boundaries
+
+begin:species
+  name = Electron_Beam
+  frac = 0.2
+  rho = 1.0e5 / (pi * (0.5*y_max)^2 * dx)
+  rho = if ((x lt dx) and (y lt 0.5*y_max), density(Electron_Beam), 0)
+  drift_x = 5.344e-19
+  identify:electron
+end:species
+
+begin:species
+  name = Aluminium
+  atomic_number = 13
+  mass = 49218
+  rho = 6.022e28
+  frac = 0.8
+  charge = 0
+  immobile = T
+end:species
+
+begin:species
+  name = Photon
+  npart = 0
+  identify:brem_photon
+end:species
+
+begin:output
+  dt_snapshot = t_end
+  particles = always
+  px = always
+  py = always
+  pz = always
+  number_density = always + species
+  number_density_modes = always
+  particle_weight = always
+  particle_probes = always
+end:output
+
+begin:probe
+  name = electron_probe
+  point = (5.0e-3, 0.0, 0.0)
+  normal = (1.0, 0.0, 0.0)
+  include_species:Electron_Beam
+  dumpmask = always
+end:probe

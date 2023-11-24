@@ -32,6 +32,30 @@ CONTAINS
 
 
 
+  SUBROUTINE calc_boundary_modes(data_array, species)
+
+    COMPLEX(num), DIMENSION(1-ng:,1-ng:,0:), INTENT(OUT) :: data_array
+    REAL(num), ALLOCATABLE :: temp_real(:,:), temp_imag(:,:)
+    INTEGER, INTENT(IN), OPTIONAL :: species
+    INTEGER :: im
+
+    ALLOCATE(temp_real(1-ng:nx+ng, 1-ng:ny+ng))
+    ALLOCATE(temp_imag(1-ng:nx+ng, 1-ng:ny+ng))
+
+    DO im = 0, n_mode-1
+      temp_real = REAL(data_array(:,:,im), num)
+      temp_imag = AIMAG(data_array(:,:,im))
+      CALL processor_summation_bcs(temp_real, ng, species=species)
+      CALL processor_summation_bcs(temp_imag, ng, species=species)
+      data_array(:,:,im) = temp_real + imagi*temp_imag
+    END DO
+
+    DEALLOCATE(temp_real, temp_imag)
+
+  END SUBROUTINE calc_boundary_modes
+
+
+
   SUBROUTINE calc_mass_density(data_array, current_species, direction)
 
     REAL(num), DIMENSION(1-ng:,1-ng:), INTENT(OUT) :: data_array
@@ -558,6 +582,83 @@ CONTAINS
     END DO
 
   END SUBROUTINE calc_number_density
+
+
+
+  SUBROUTINE calc_number_density_modes(data_array, current_species, direction)
+
+    COMPLEX(num), DIMENSION(1-ng:,1-ng:,0:), INTENT(OUT) :: data_array
+    INTEGER, INTENT(IN) :: current_species
+    INTEGER, INTENT(IN), OPTIONAL :: direction
+    ! The data to be weighted onto the grid
+    REAL(num) :: wdata, macro_part_volume, part_num_dens
+    COMPLEX(num) :: exp_itheta, exp_imtheta, mode_fac
+    INTEGER :: ispecies, ix, iy, im, spec_start, spec_end
+    TYPE(particle), POINTER :: current
+    LOGICAL :: spec_sum
+#include "particle_head.inc"
+
+    data_array = 0.0_num
+
+    spec_start = current_species
+    spec_end = current_species
+    spec_sum = .FALSE.
+
+    IF (current_species <= 0) THEN
+      spec_start = 1
+      spec_end = n_species
+      spec_sum = .TRUE.
+    END IF
+
+    DO ispecies = spec_start, spec_end
+      IF (spec_sum &
+          .AND. io_list(ispecies)%species_type == c_species_id_photon) CYCLE
+#ifndef NO_TRACER_PARTICLES
+      IF (spec_sum .AND. io_list(ispecies)%zero_current) CYCLE
+#endif
+      current => io_list(ispecies)%attached_list%head
+      wdata = io_list(ispecies)%weight
+
+      DO WHILE (ASSOCIATED(current))
+#ifndef PER_SPECIES_WEIGHT
+        wdata = current%weight
+#endif
+
+#include "particle_to_grid.inc"
+
+        macro_part_volume = get_macro_part_volume(current)
+        part_num_dens = wdata / macro_part_volume
+        exp_itheta = (current%part_pos(2) + imagi*current%part_pos(3)) / part_r
+        exp_imtheta = 1.0_num
+
+        DO im = 0, n_mode-1
+          IF (im == 0) THEN 
+            mode_fac = 1.0_num 
+          ELSE 
+            exp_imtheta = exp_imtheta * exp_itheta 
+            mode_fac = 2.0_num * exp_imtheta 
+          END IF  
+          DO iy = sf_min, sf_max
+          DO ix = sf_min, sf_max
+            data_array(cell_x+ix, cell_y+iy, im) = &
+                data_array(cell_x+ix, cell_y+iy, im) &
+                + gx(ix) * gy(iy) * part_num_dens * mode_fac
+          END DO
+          END DO
+        END DO
+
+        current => current%next
+      END DO
+      CALL calc_boundary_modes(data_array, ispecies)
+    END DO
+
+    CALL calc_boundary_modes(data_array)
+
+    DO ix = 1, 2*c_ndims
+      CALL field_mode_zero_gradient(data_array, c_stagger_centre, ix)
+    END DO
+
+  END SUBROUTINE calc_number_density_modes
 
 
 

@@ -435,70 +435,13 @@ CONTAINS
 
     INTEGER :: ispecies, iz, z_temp, q_temp, i, j
     TYPE(particle), POINTER :: current
-    REAL(num), ALLOCATABLE :: grid_num_density_electron_temp(:,:)
-    REAL(num), ALLOCATABLE :: grid_num_density_electron(:,:)
-    REAL(num), ALLOCATABLE :: grid_temperature_electron_temp(:,:)
-    REAL(num), ALLOCATABLE :: grid_temperature_electron(:,:)
-    REAL(num), ALLOCATABLE :: grid_root_temp_over_num(:,:)
-    REAL(num), ALLOCATABLE :: grid_num_density_ion(:,:)
+    COMPLEX(num), ALLOCATABLE :: grid_num_density_ion_mode(:,:,:)
     REAL(num) :: part_ux, part_uy, part_uz, gamma_rel
-    REAL(num) :: part_x, part_y, part_e, part_ni, part_v
-    REAL(num) :: part_root_te_over_ne, plasma_factor
+    REAL(num) :: part_x, part_y, part_z, part_r, part_x_local, part_r_local 
+    REAL(num) :: part_e, part_ni, part_v
+    COMPLEX(num) :: exp_min_itheta
 
-    ! Calculate electron number density and temperature, summed over all
-    ! electron species
-    IF (use_plasma_screening) THEN
-      ALLOCATE(grid_num_density_electron_temp(1-ng:nx+ng,1-ng:ny+ng))
-      ALLOCATE(grid_num_density_electron(1-ng:nx+ng,1-ng:ny+ng))
-      ALLOCATE(grid_temperature_electron_temp(1-ng:nx+ng,1-ng:ny+ng))
-      ALLOCATE(grid_temperature_electron(1-ng:nx+ng, 1-ng:ny+ng))
-      ALLOCATE(grid_root_temp_over_num(1-ng:nx+ng,1-ng:ny+ng))
-      grid_num_density_electron = c_tiny
-      grid_temperature_electron = 0.0_num
-
-      DO ispecies = 1, n_species
-        IF (species_list(ispecies)%species_type == c_species_id_electron) THEN
-          CALL calc_number_density(grid_num_density_electron_temp, ispecies)
-          CALL calc_temperature(grid_temperature_electron_temp, ispecies)
-
-          ! Sum the densities, perform a weighted mean to find mean temperature
-          grid_num_density_electron = grid_num_density_electron &
-              + grid_num_density_electron_temp
-          grid_temperature_electron = grid_temperature_electron &
-              + grid_temperature_electron_temp*grid_num_density_electron_temp
-        END IF
-      END DO
-      grid_temperature_electron = grid_temperature_electron &
-          / grid_num_density_electron
-
-      ! Create a grid of sqrt(Te/ne) values
-      DO j = 1-ng, ny+ng
-        DO i = 1-ng, nx+ng
-          IF (grid_num_density_electron(i,j) < 1.0e-10_num) THEN
-            grid_root_temp_over_num(i,j) = 0.0_num
-          ELSE IF (grid_temperature_electron(i,j) < 1.0e-10_num) THEN
-            grid_root_temp_over_num(i,j) = 0.0_num
-          ELSE
-            grid_root_temp_over_num(i,j) = &
-                SQRT(grid_temperature_electron(i,j) &
-                / grid_num_density_electron(i,j))
-          END IF
-        END DO
-      END DO
-
-      CALL field_bc(grid_root_temp_over_num, ng)
-
-      DEALLOCATE(grid_num_density_electron_temp)
-      DEALLOCATE(grid_temperature_electron_temp)
-      DEALLOCATE(grid_num_density_electron)
-      DEALLOCATE(grid_temperature_electron)
-    ELSE
-      ! This will neglect thermal contributions to the bremsstrahlung cross
-      ! section
-      plasma_factor = 1.0_num
-    END IF
-
-    ALLOCATE(grid_num_density_ion(1-ng:nx+ng,1-ng:ny+ng))
+    ALLOCATE(grid_num_density_ion_mode(1-ng:nx+ng,1-ng:ny+ng,0:n_mode-1))
 
     ! Calculate the number density of each ion species
     DO iz = 1, n_species
@@ -507,8 +450,8 @@ CONTAINS
 
       IF (z_temp < 1 .OR. z_temp > 100) CYCLE
 
-      CALL calc_number_density(grid_num_density_ion, iz)
-      CALL field_bc(grid_num_density_ion, ng)
+      CALL calc_number_density_modes(grid_num_density_ion_mode, iz)
+      CALL field_mode_bc(grid_num_density_ion_mode, ng)
 
       ! Update the optical depth for each electron species
       DO ispecies = 1, n_species
@@ -536,27 +479,20 @@ CONTAINS
                 + current%part_p(3)**2) * c**2 / part_e
 
             ! Get number density at electron
-            part_x = current%part_pos(1) - x_grid_min_local
-            part_y = current%part_pos(2) - y_grid_min_local
+            part_x = current%part_pos(1)
+            part_y = current%part_pos(2)
+            part_z = current%part_pos(3)
+            part_x_local = part_x - x_grid_min_local 
+            part_r = SQRT(part_y**2 + part_z**2)
+            part_r_local = part_r - y_grid_min_local
+            exp_min_itheta = (part_y - imagi * part_z) / part_r
 
-            CALL grid_centred_var_at_particle(part_x, part_y, part_ni,&
-                grid_num_density_ion)
-
-            ! Update the optical depth for the screening option chosen
-            IF (use_plasma_screening) THEN
-              ! Obtain extra parameters needed for plasma screening model
-              CALL grid_centred_var_at_particle(part_x, part_y, &
-                  part_root_te_over_ne, grid_root_temp_over_num)
-
-              q_temp = NINT(species_list(iz)%charge/q0)
-              plasma_factor = get_plasma_factor(q_temp, z_temp, &
-                  part_root_te_over_ne)
-            END IF
+            CALL grid_centred_var_at_particle(part_x, part_y, exp_min_itheta, &
+                part_ni, grid_num_density_ion_mode)
 
             current%optical_depth_bremsstrahlung = &
                 current%optical_depth_bremsstrahlung &
-                - delta_optical_depth(z_temp, part_e, part_v, part_ni, &
-                plasma_factor)
+                - delta_optical_depth(z_temp, part_e, part_v, part_ni)
 
             ! If optical depth dropped below zero generate photon and reset
             ! optical depth
@@ -572,11 +508,7 @@ CONTAINS
       END DO
     END DO
 
-    DEALLOCATE(grid_num_density_ion)
-
-    IF (use_plasma_screening) THEN
-      DEALLOCATE(grid_root_temp_over_num)
-    END IF
+    DEALLOCATE(grid_num_density_ion_mode)
 
   END SUBROUTINE bremsstrahlung_update_optical_depth
 
@@ -586,10 +518,10 @@ CONTAINS
   ! (ion number density) * (emission cross section) * (distance traversed)
   ! Here, cross sections are determined from Geant4 look-up tables
 
-  FUNCTION delta_optical_depth(z, part_e, part_v, part_ni, plasma_factor)
+  FUNCTION delta_optical_depth(z, part_e, part_v, part_ni)
 
     INTEGER, INTENT(IN) :: z
-    REAL(num), INTENT(IN) :: part_e, part_v, part_ni, plasma_factor
+    REAL(num), INTENT(IN) :: part_e, part_v, part_ni
     INTEGER :: brem_index
     REAL(num) :: cross_sec_val
     REAL(num) :: delta_optical_depth
@@ -598,41 +530,12 @@ CONTAINS
 
     cross_sec_val = find_value_from_table_1d(part_e, &
         brem_array(brem_index)%size_t, brem_array(brem_index)%e_table, &
-        brem_array(brem_index)%cross_section, brem_array(brem_index)%state) &
-        * plasma_factor
+        brem_array(brem_index)%cross_section, brem_array(brem_index)%state)
 
     delta_optical_depth = part_ni * cross_sec_val * part_v * dt &
         / photon_weight
 
   END FUNCTION delta_optical_depth
-
-
-
-  ! Calculate the enhancement of the cross section due to plasma screening
-  ! z: Charge of ion species
-  ! a: Atomic number of ion species
-  ! part_root_te_over_ne: Number density of background electron species at the
-  !                       electron divided by the temperature of this species,
-  !                       evaluated at the electron position.
-
-  FUNCTION get_plasma_factor(z, a, part_root_te_over_ne)
-
-    INTEGER, INTENT(IN) :: a, z
-    REAL(num), INTENT(IN) :: part_root_te_over_ne
-    REAL(num) :: term1, term2, ra, rz, log_a_third
-    REAL(num) :: get_plasma_factor
-    REAL(num), PARAMETER :: one_third = 1.0_num / 3.0_num
-
-    ra = REAL(a, num)
-    rz = REAL(z, num)
-    log_a_third = one_third * LOG(ra)
-    term1 = log_plasma_screen_const_1 - log_a_third
-    term2 = log_plasma_screen_const_2 + log_a_third &
-        + LOG(part_root_te_over_ne + c_tiny)
-    get_plasma_factor = 1.0_num + ((rz / ra)**2 * term2 / term1)
-    get_plasma_factor = MAX(1.0_num, get_plasma_factor)
-
-  END FUNCTION get_plasma_factor
 
 
 
@@ -718,16 +621,18 @@ CONTAINS
   ! grid_var, averaged over the particle shape for a particle at position
   ! (part_x, part_y)
 
-  SUBROUTINE grid_centred_var_at_particle(part_x, part_y, part_var, &
-      grid_var)
+  SUBROUTINE grid_centred_var_at_particle(part_x_local, part_r_local, &
+      exp_min_itheta, part_var, grid_var)
 
-    REAL(num), INTENT(IN) :: part_x, part_y
-    REAL(num), INTENT(IN) :: grid_var(1-ng:,1-ng:)
+    REAL(num), INTENT(IN) :: part_x_local, part_r_local
+    COMPLEX(num), INTENT(IN) :: exp_min_itheta, grid_var(1-ng:,1-ng:,0:)
     REAL(num), INTENT(OUT) :: part_var
     INTEGER :: cell_x1, cell_y1
     REAL(num) :: cell_x_r, cell_y_r
     REAL(num) :: cell_frac_x, cell_frac_y
     REAL(num), DIMENSION(sf_min:sf_max) :: gx, gy
+    INTEGER :: im
+    COMPLEX(num) :: exp_min_imtheta
 #ifdef PARTICLE_SHAPE_BSPLINE3
     REAL(num) :: cf2
     REAL(num), PARAMETER :: fac = (1.0_num / 24.0_num)**c_ndims
@@ -738,14 +643,13 @@ CONTAINS
     REAL(num), PARAMETER :: fac = (0.5_num)**c_ndims
 #endif
 
-    ! The following method is lifted from photons.F90 (field_at_particle), for
-    ! the cell-centered fields, taking into account the various particle shapes
+    ! Lifted from photons.F90
 #ifdef PARTICLE_SHAPE_TOPHAT
-    cell_x_r = part_x / dx - 0.5_num
-    cell_y_r = part_y / dy - 0.5_num
-#else
-    cell_x_r = part_x / dx
-    cell_y_r = part_y / dy
+    cell_x_r = part_x_local / dx - 0.5_num
+    cell_y_r = part_r_local / dy - 0.5_num
+  #else
+    cell_x_r = part_x_local / dx
+    cell_y_r = part_r_local / dy
 #endif
     cell_x1 = FLOOR(cell_x_r + 0.5_num)
     cell_frac_x = REAL(cell_x1, num) - cell_x_r
