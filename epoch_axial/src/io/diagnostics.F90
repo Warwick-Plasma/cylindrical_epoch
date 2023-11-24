@@ -741,6 +741,10 @@ CONTAINS
             'number_density', 'Number_Density', '1/m^3', &
             c_stagger_cell_centre, calc_number_density, array)
 
+        CALL write_nspecies_field_mode(c_dump_num_dens_mode, code, &
+            'number_density_mode', 'Number_Density_Mode', '1/m^3', &
+            c_stagger_cell_centre, calc_number_density_modes)
+
         CALL write_nspecies_field(c_dump_ppc, code, &
             'ppc', 'Particles_Per_Cell', 'n_particles', &
             c_stagger_cell_centre, calc_ppc, array)
@@ -2536,6 +2540,91 @@ CONTAINS
     END DO
 
   END SUBROUTINE write_nspecies_field
+
+
+
+  SUBROUTINE write_nspecies_field_mode(id, code, block_id, name, units, &
+      stagger, func)
+
+    ! For the complex field modes we write a 3D array, with dimensions (nx, ny, 
+    ! n_mode). The "array" variable is real, not complex - pass either REAL(var)
+    ! or AIMAG(var)
+
+    INTEGER, INTENT(IN) :: id, code
+    CHARACTER(LEN=*), INTENT(IN) :: block_id, name, units
+    INTEGER, INTENT(IN) :: stagger
+    CHARACTER(LEN=string_length) :: block_id_real, block_id_imag
+    CHARACTER(LEN=string_length) :: name_real, name_imag
+    COMPLEX(num), ALLOCATABLE :: array(:,:,:)
+    INTEGER :: mask, dumped, ispecies
+    INTEGER :: subtype, subarray
+    INTEGER :: dims(3)
+    LOGICAL :: convert, restart_id, normal_id
+
+    INTERFACE
+      SUBROUTINE func(data_array, current_species, direction)
+        USE constants
+        COMPLEX(num), DIMENSION(1-ng:,1-ng:,0:), INTENT(OUT) :: data_array
+        INTEGER, INTENT(IN) :: current_species
+        INTEGER, INTENT(IN), OPTIONAL :: direction
+      END SUBROUTINE func
+    END INTERFACE
+
+    mask = iomask(id)
+
+    ! This is a normal dump and normal output variable
+    normal_id = IAND(IAND(code, mask), IOR(c_io_always, c_io_full)) /= 0
+    ! This is a restart dump and a restart variable
+    restart_id = IAND(IAND(code, mask), c_io_restartable) /= 0
+
+    convert = IAND(mask, c_io_dump_single) /= 0 .AND. .NOT.restart_id
+
+    IF (.NOT.restart_id .AND. IAND(mask, c_io_never) /= 0) RETURN
+
+    dims = (/nx_global, ny_global, n_mode/) 
+
+    IF (convert) THEN
+      subtype  = subtype_mode_r4
+      subarray = subarray_mode_r4
+    ELSE
+      subtype  = subtype_mode
+      subarray = subarray_mode
+    END IF
+
+    dumped_skip_dir = 0
+    dumped = 1
+
+    IF (IAND(mask, code) == 0) RETURN
+
+    ALLOCATE(array(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
+
+    ! Loop over all species, calculate field modes and write them
+    DO ispecies = 1, n_species
+
+      CALL func(array, ispecies)
+
+      block_id_real = TRIM(block_id) // '/' &
+          // TRIM(species_list(ispecies)%name) // '/Real'
+      name_real = TRIM(name) // '/' // TRIM(species_list(ispecies)%name) &
+          // '/Real'
+      block_id_imag = TRIM(block_id) // '/' &
+          // TRIM(species_list(ispecies)%name) // '/Imaginary'
+      name_imag = TRIM(name) // '/' // TRIM(species_list(ispecies)%name) &
+          // '/Imaginary'
+
+      CALL sdf_write_plain_variable(sdf_handle, TRIM(block_id_real), &
+          TRIM(name_real), TRIM(units), dims, stagger, 'mode_grid', &
+          REAL(array, num), subtype, subarray, convert)
+
+      CALL sdf_write_plain_variable(sdf_handle, TRIM(block_id_imag), &
+          TRIM(name_imag), TRIM(units), dims, stagger, 'mode_grid', &
+          AIMAG(array), subtype, subarray, convert)
+    END DO
+    dump_field_grid = .TRUE.
+
+    DEALLOCATE(array)
+
+  END SUBROUTINE write_nspecies_field_mode
 
 
 

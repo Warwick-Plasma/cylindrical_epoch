@@ -1,26 +1,33 @@
-        part_var = &
-              gy(-2) * (gx(-2) * grid_var(cell_x1-2,cell_y1-2) &
-            +           gx(-1) * grid_var(cell_x1-1,cell_y1-2) &
-            +           gx( 0) * grid_var(cell_x1  ,cell_y1-2) &
-            +           gx( 1) * grid_var(cell_x1+1,cell_y1-2) &
-            +           gx( 2) * grid_var(cell_x1+2,cell_y1-2)) &
-            + gy(-1) * (gx(-2) * grid_var(cell_x1-2,cell_y1-1) &
-            +           gx(-1) * grid_var(cell_x1-1,cell_y1-1) &
-            +           gx( 0) * grid_var(cell_x1  ,cell_y1-1) &
-            +           gx( 1) * grid_var(cell_x1+1,cell_y1-1) &
-            +           gx( 2) * grid_var(cell_x1+2,cell_y1-1)) &
-            + gy( 0) * (gx(-2) * grid_var(cell_x1-2,cell_y1  ) &
-            +           gx(-1) * grid_var(cell_x1-1,cell_y1  ) &
-            +           gx( 0) * grid_var(cell_x1  ,cell_y1  ) &
-            +           gx( 1) * grid_var(cell_x1+1,cell_y1  ) &
-            +           gx( 2) * grid_var(cell_x1+2,cell_y1  )) &
-            + gy( 1) * (gx(-2) * grid_var(cell_x1-2,cell_y1+1) &
-            +           gx(-1) * grid_var(cell_x1-1,cell_y1+1) &
-            +           gx( 0) * grid_var(cell_x1  ,cell_y1+1) &
-            +           gx( 1) * grid_var(cell_x1+1,cell_y1+1) &
-            +           gx( 2) * grid_var(cell_x1+2,cell_y1+1)) &
-            + gy( 2) * (gx(-2) * grid_var(cell_x1-2,cell_y1+2) &
-            +           gx(-1) * grid_var(cell_x1-1,cell_y1+2) &
-            +           gx( 0) * grid_var(cell_x1  ,cell_y1+2) &
-            +           gx( 1) * grid_var(cell_x1+1,cell_y1+2) &
-            +           gx( 2) * grid_var(cell_x1+2,cell_y1+2))
+exp_min_imtheta = 1.0_num
+part_var = 0.0_num
+
+DO im = 0, n_mode-1
+  part_var = part_var + REAL( exp_min_imtheta * (&
+        gy(-2) * (gx(-2) * grid_var(cell_x1-2,cell_y1-2,im) &
+      +           gx(-1) * grid_var(cell_x1-1,cell_y1-2,im) &
+      +           gx( 0) * grid_var(cell_x1  ,cell_y1-2,im) &
+      +           gx( 1) * grid_var(cell_x1+1,cell_y1-2,im) &
+      +           gx( 2) * grid_var(cell_x1+2,cell_y1-2,im)) &
+      + gy(-1) * (gx(-2) * grid_var(cell_x1-2,cell_y1-1,im) &
+      +           gx(-1) * grid_var(cell_x1-1,cell_y1-1,im) &
+      +           gx( 0) * grid_var(cell_x1  ,cell_y1-1,im) &
+      +           gx( 1) * grid_var(cell_x1+1,cell_y1-1,im) &
+      +           gx( 2) * grid_var(cell_x1+2,cell_y1-1,im)) &
+      + gy( 0) * (gx(-2) * grid_var(cell_x1-2,cell_y1  ,im) &
+      +           gx(-1) * grid_var(cell_x1-1,cell_y1  ,im) &
+      +           gx( 0) * grid_var(cell_x1  ,cell_y1  ,im) &
+      +           gx( 1) * grid_var(cell_x1+1,cell_y1  ,im) &
+      +           gx( 2) * grid_var(cell_x1+2,cell_y1  ,im)) &
+      + gy( 1) * (gx(-2) * grid_var(cell_x1-2,cell_y1+1,im) &
+      +           gx(-1) * grid_var(cell_x1-1,cell_y1+1,im) &
+      +           gx( 0) * grid_var(cell_x1  ,cell_y1+1,im) &
+      +           gx( 1) * grid_var(cell_x1+1,cell_y1+1,im) &
+      +           gx( 2) * grid_var(cell_x1+2,cell_y1+1,im)) &
+      + gy( 2) * (gx(-2) * grid_var(cell_x1-2,cell_y1+2,im) &
+      +           gx(-1) * grid_var(cell_x1-1,cell_y1+2,im) &
+      +           gx( 0) * grid_var(cell_x1  ,cell_y1+2,im) &
+      +           gx( 1) * grid_var(cell_x1+1,cell_y1+2,im) &
+      +           gx( 2) * grid_var(cell_x1+2,cell_y1+2,im))),num)
+
+  exp_min_imtheta = exp_min_imtheta * exp_min_itheta
+END DO

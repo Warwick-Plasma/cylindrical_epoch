@@ -679,6 +679,9 @@ CONTAINS
     ELSE IF (str_cmp(element, 'number_density')) THEN
       elementselected = c_dump_number_density
 
+    ELSE IF (str_cmp(element, 'number_density_modes')) THEN
+      elementselected = c_dump_num_dens_mode
+
     ELSE IF (str_cmp(element, 'ppc') &
         .OR. str_cmp(element, 'particles_per_cell')) THEN
       elementselected = c_dump_ppc

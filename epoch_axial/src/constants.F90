@@ -623,7 +623,8 @@ MODULE constants
   INTEGER, PARAMETER :: c_dump_jrm               = 79
   INTEGER, PARAMETER :: c_dump_jtm               = 80
   INTEGER, PARAMETER :: c_dump_probe_time        = 81
-  INTEGER, PARAMETER :: num_vars_to_dump         = 81
+  INTEGER, PARAMETER :: c_dump_num_dens_mode     = 82
+  INTEGER, PARAMETER :: num_vars_to_dump         = 82
 
   INTEGER, PARAMETER :: c_subset_random     = 1
   INTEGER, PARAMETER :: c_subset_gamma_min  = 2

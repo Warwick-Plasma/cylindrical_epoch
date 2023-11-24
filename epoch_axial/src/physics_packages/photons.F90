@@ -788,7 +788,6 @@ CONTAINS
     INTEGER :: dcellx, dcelly, im
     REAL(num) :: ex_part, ey_part, ez_part, er_part, et_part
     REAL(num) :: bx_part, by_part, bz_part, br_part, bt_part
-    REAL(num) :: part_r
     COMPLEX(num) :: exp_min_imtheta
     
     ! Particle weighting multiplication factor
