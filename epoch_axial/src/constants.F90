@@ -71,6 +71,12 @@ MODULE constants
   INTEGER, PARAMETER :: c_bc_heat_bath = 15
   INTEGER, PARAMETER :: c_bc_zero_b = 16
 
+  ! Collision types
+  INTEGER, PARAMETER :: c_coll_ignore = 0
+  INTEGER, PARAMETER :: c_coll_collide = 1
+  INTEGER, PARAMETER :: c_coll_background_1st = 2
+  INTEGER, PARAMETER :: c_coll_background_2nd = 3
+
   ! Boundary location codes
   INTEGER, PARAMETER :: c_bd_x_min = 1
   INTEGER, PARAMETER :: c_bd_x_max = 2
