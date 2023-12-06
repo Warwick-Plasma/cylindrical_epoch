@@ -647,7 +647,7 @@ CONTAINS
 #ifdef PARTICLE_SHAPE_TOPHAT
     cell_x_r = part_x_local / dx - 0.5_num
     cell_y_r = part_r_local / dy - 0.5_num
-  #else
+#else
     cell_x_r = part_x_local / dx
     cell_y_r = part_r_local / dy
 #endif

@@ -65,7 +65,7 @@ CONTAINS
     REAL(num) :: part_m
     ! The data to be weighted onto the grid
     REAL(num) :: wdata
-    REAL(num) :: fac, idx
+    REAL(num) :: fac, macro_part_volume, part_m_dens
     INTEGER :: ispecies, ix, iy, spec_start, spec_end
     TYPE(particle), POINTER :: current
     LOGICAL :: spec_sum
@@ -74,8 +74,6 @@ CONTAINS
     data_array = 0.0_num
     part_m = 0.0_num
     fac = 0.0_num
-
-    idx = 1.0_num / dx / dy
 
     spec_start = current_species
     spec_end = current_species
@@ -114,10 +112,13 @@ CONTAINS
 
 #include "particle_to_grid.inc"
 
+        macro_part_volume = get_macro_part_volume(current)
+        part_m_dens = wdata / macro_part_volume
+
         DO iy = sf_min, sf_max
         DO ix = sf_min, sf_max
           data_array(cell_x+ix, cell_y+iy) = &
-              data_array(cell_x+ix, cell_y+iy) + gx(ix) * gy(iy) * wdata
+              data_array(cell_x+ix, cell_y+iy) + gx(ix) * gy(iy) * part_m_dens
         END DO
         END DO
 
@@ -128,7 +129,6 @@ CONTAINS
 
     CALL calc_boundary(data_array)
 
-    data_array = data_array * idx
     DO ix = 1, 2*c_ndims
       CALL field_zero_gradient(data_array, c_stagger_centre, ix)
     END DO
@@ -448,7 +448,7 @@ CONTAINS
     REAL(num) :: part_q
     ! The data to be weighted onto the grid
     REAL(num) :: wdata
-    REAL(num) :: fac, idx
+    REAL(num) :: fac, macro_part_volume, part_q_dens
     INTEGER :: ispecies, ix, iy, spec_start, spec_end
     TYPE(particle), POINTER :: current
     LOGICAL :: spec_sum
@@ -457,8 +457,6 @@ CONTAINS
     data_array = 0.0_num
     part_q = 0.0_num
     fac = 0.0_num
-
-    idx = 1.0_num / dx / dy
 
     spec_start = current_species
     spec_end = current_species
@@ -497,10 +495,13 @@ CONTAINS
 
 #include "particle_to_grid.inc"
 
+        macro_part_volume = get_macro_part_volume(current)
+        part_q_dens = wdata / macro_part_volume
+
         DO iy = sf_min, sf_max
         DO ix = sf_min, sf_max
           data_array(cell_x+ix, cell_y+iy) = &
-              data_array(cell_x+ix, cell_y+iy) + gx(ix) * gy(iy) * wdata
+              data_array(cell_x+ix, cell_y+iy) + gx(ix) * gy(iy) * part_q_dens
         END DO
         END DO
 
@@ -511,7 +512,6 @@ CONTAINS
 
     CALL calc_boundary(data_array)
 
-    data_array = data_array * idx
     DO ix = 1, 2*c_ndims
       CALL field_zero_gradient(data_array, c_stagger_centre, ix)
     END DO
@@ -670,7 +670,7 @@ CONTAINS
     INTEGER :: ispecies, spec_start, spec_end
     TYPE(particle), POINTER :: current
     LOGICAL :: spec_sum
-    REAL(num) :: cell_x_r, cell_y_r
+    REAL(num) :: part_r, cell_x_r, cell_y_r
     INTEGER :: cell_x, cell_y
 
     data_array = 0.0_num
@@ -692,12 +692,13 @@ CONTAINS
       current => io_list(ispecies)%attached_list%head
 
       DO WHILE (ASSOCIATED(current))
+        part_r = SQRT(current%part_pos(2)**2 + current%part_pos(3)**2)
 #ifdef PARTICLE_SHAPE_TOPHAT
         cell_x_r = (current%part_pos(1) - x_grid_min_local) / dx
-        cell_y_r = (current%part_pos(2) - y_grid_min_local) / dy
+        cell_y_r = (part_r - y_grid_min_local) / dy
 #else
         cell_x_r = (current%part_pos(1) - x_grid_min_local) / dx + 0.5_num
-        cell_y_r = (current%part_pos(2) - y_grid_min_local) / dy + 0.5_num
+        cell_y_r = (part_r - y_grid_min_local) / dy + 0.5_num
 #endif
         cell_x = FLOOR(cell_x_r) + 1
         cell_y = FLOOR(cell_y_r) + 1
@@ -723,7 +724,7 @@ CONTAINS
     INTEGER :: ispecies, spec_start, spec_end
     TYPE(particle), POINTER :: current
     LOGICAL :: spec_sum
-    REAL(num) :: cell_x_r, cell_y_r
+    REAL(num) :: part_r, cell_x_r, cell_y_r
     INTEGER :: cell_x, cell_y
 
     data_array = 0.0_num
@@ -752,13 +753,13 @@ CONTAINS
 #ifndef PER_SPECIES_WEIGHT
         wdata = current%weight
 #endif
-
+        part_r = SQRT(current%part_pos(2)**2 + current%part_pos(3)**2)
 #ifdef PARTICLE_SHAPE_TOPHAT
         cell_x_r = (current%part_pos(1) - x_grid_min_local) / dx
-        cell_y_r = (current%part_pos(2) - y_grid_min_local) / dy
+        cell_y_r = (part_r - y_grid_min_local) / dy
 #else
         cell_x_r = (current%part_pos(1) - x_grid_min_local) / dx + 0.5_num
-        cell_y_r = (current%part_pos(2) - y_grid_min_local) / dy + 0.5_num
+        cell_y_r = (part_r - y_grid_min_local) / dy + 0.5_num
 #endif
         cell_x = FLOOR(cell_x_r) + 1
         cell_y = FLOOR(cell_y_r) + 1
@@ -1043,7 +1044,7 @@ CONTAINS
     REAL(num) :: part_px, part_py, part_pz
     ! The data to be weighted onto the grid
     REAL(num) :: wdata
-    REAL(num) :: fac, idx, root
+    REAL(num) :: fac, macro_part_volume, part_j, root
     INTEGER :: ispecies, ix, iy, spec_start, spec_end
     TYPE(particle), POINTER :: current
     LOGICAL :: spec_sum
@@ -1060,8 +1061,6 @@ CONTAINS
     data_array = 0.0_num
     part_q = 0.0_num
     fac = 0.0_num
-
-    idx = 1.0_num / dx / dy
 
     spec_start = current_species
     spec_end = current_species
@@ -1116,10 +1115,13 @@ CONTAINS
 
 #include "particle_to_grid.inc"
 
+        macro_part_volume = get_macro_part_volume(current)
+        part_j = wdata * c / macro_part_volume
+
         DO iy = sf_min, sf_max
         DO ix = sf_min, sf_max
           data_array(cell_x+ix, cell_y+iy) = &
-              data_array(cell_x+ix, cell_y+iy) + gx(ix) * gy(iy) * wdata
+              data_array(cell_x+ix, cell_y+iy) + gx(ix) * gy(iy) * part_j
         END DO
         END DO
 
@@ -1130,8 +1132,6 @@ CONTAINS
 
     CALL calc_boundary(data_array)
 
-    idx = c * idx
-    data_array = data_array * idx
     DO ix = 1, 2*c_ndims
       CALL field_zero_gradient(data_array, c_stagger_centre, ix)
     END DO

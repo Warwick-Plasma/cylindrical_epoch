@@ -550,12 +550,23 @@ MODULE shared_data
   INTEGER :: coll_sort_array_size = 0
 
   REAL(num), ALLOCATABLE, DIMENSION(:,:) :: coll_pairs
-  REAL(num) :: coulomb_log
+  INTEGER, ALLOCATABLE, DIMENSION(:,:) :: coll_pairs_state
+  INTEGER :: coll_n_step = 1
+  INTEGER :: back_n_step = 1
+  INTEGER :: ci_n_step = 1
+  REAL(num) :: coulomb_log, rel_cutoff, back_update_dt
   LOGICAL :: coulomb_log_auto, use_collisions
+  LOGICAL :: use_background_collisions
   LOGICAL :: use_nanbu = .TRUE.
+  LOGICAL :: use_cold_correction = .TRUE.
+  LOGICAL :: use_rel_cutoff = .FALSE.
+  LOGICAL :: coll_subcycle_back = .FALSE.
+  LOGICAL :: coll_back_recalc
 
   LOGICAL :: use_field_ionisation, use_collisional_ionisation
   LOGICAL :: use_multiphoton, use_bsi
+  LOGICAL :: subsample_ci
+  REAL(num) :: subsample_ci_number
   CHARACTER(LEN=string_length) :: physics_table_location
   
   INTEGER :: maxwell_solver = c_maxwell_solver_yee
@@ -600,14 +611,15 @@ MODULE shared_data
 #endif
   LOGICAL :: use_qed = .FALSE.
 
-#ifdef BREMSSTRAHLUNG
-  !----------------------------------------------------------------------------
-  ! Bremsstrahlung
-  !----------------------------------------------------------------------------
   TYPE interpolation_state
     REAL(num) :: x = HUGE(1.0_num), y = HUGE(1.0_num), val1d, val2d
     INTEGER :: ix1 = 1, ix2 = 1, iy1 = 1, iy2 = 1
   END TYPE interpolation_state
+
+#ifdef BREMSSTRAHLUNG
+  !----------------------------------------------------------------------------
+  ! Bremsstrahlung
+  !----------------------------------------------------------------------------
   ! Table declarations
   TYPE brem_tables
     REAL(num), ALLOCATABLE :: cdf_table(:,:), k_table(:,:)
