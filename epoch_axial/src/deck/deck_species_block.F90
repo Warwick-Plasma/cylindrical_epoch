@@ -508,6 +508,12 @@ CONTAINS
       RETURN
     END IF
 
+    IF (str_cmp(element, 'ignore_fields')) THEN
+      species_list(species_id)%ignore_fields = &
+          as_logical_print(value, element, errcode)
+      RETURN
+    END IF
+
     IF (str_cmp(element, 'meet_injectors') &
         .OR. str_cmp(element, 'load_up_to_injectors')) THEN
       species_list(species_id)%fill_ghosts = &

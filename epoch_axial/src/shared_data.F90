@@ -201,6 +201,7 @@ MODULE shared_data
     INTEGER(i8) :: count
     TYPE(particle_list) :: attached_list
     LOGICAL :: immobile
+    LOGICAL :: ignore_fields
     LOGICAL :: fill_ghosts
 
     ! Parameters for relativistic and arbitrary particle loader

@@ -219,6 +219,10 @@ CONTAINS
     DO ispecies = 1, n_species
       current => species_list(ispecies)%attached_list%head
       IF (species_list(ispecies)%immobile) CYCLE
+      IF (species_list(ispecies)%ignore_fields) THEN 
+        CALL no_field_push(ispecies)
+        CYCLE 
+      END IF
       IF (species_list(ispecies)%species_type == c_species_id_photon) THEN
 #ifdef BREMSSTRAHLUNG
         IF (ispecies == bremsstrahlung_photon_species) THEN
@@ -889,5 +893,137 @@ CONTAINS
 
   END SUBROUTINE push_photons
 #endif
+
+
+
+SUBROUTINE no_field_push(ispecies)
+
+  ! Particle pusher using momentum only.
+  ! Does not contribute to fields or current density
+  REAL(num) :: delta_x, delta_y, delta_z
+  REAL(num) :: part_ux, part_uy, part_uz
+  REAL(num) :: part_x, part_y, part_z
+  INTEGER,INTENT(IN) :: ispecies
+  TYPE(particle), POINTER :: current
+  REAL(num) :: cdt, ipart_mc, gamma_rel, root
+
+  ! Used for particle probes (to see of probe conditions are satisfied)
+#ifndef NO_PARTICLE_PROBES
+  REAL(num) :: init_part_x, final_part_x
+  REAL(num) :: init_part_y, final_part_y
+  REAL(num) :: init_part_z, final_part_z
+  TYPE(particle_probe), POINTER :: current_probe
+  TYPE(particle), POINTER :: particle_copy
+  REAL(num) :: d_init, d_final, current_energy
+  LOGICAL :: probes_for_species
+  REAL(num) :: path_frac
+#endif
+
+  cdt = c * dt
+
+#ifndef NO_PARTICLE_PROBES
+  current_probe => species_list(ispecies)%attached_probes
+  probes_for_species = ASSOCIATED(current_probe)
+#if defined(PARTICLE_ID) || defined(PARTICLE_ID4) 
+  IF (probes_for_species) THEN 
+    CALL generate_particle_ids(species_list(ispecies)%attached_list)
+  END IF
+#endif
+#endif
+
+#ifndef PER_PARTICLE_CHARGE_MASS
+  ipart_mc = 1.0_num / (species_list(ispecies)%mass * c)
+#endif
+
+  ! set current to point to head of list
+  current => species_list(ispecies)%attached_list%head
+  ! loop over photons
+  DO WHILE(ASSOCIATED(current))
+#ifdef PER_PARTICLE_CHARGE_MASS
+    ipart_mc = 1.0_num / (current%mass * c)
+#endif
+#ifndef NO_PARTICLE_PROBES
+    init_part_x = current%part_pos(1)
+    init_part_y = current%part_pos(2)
+    init_part_z = current%part_pos(3)
+#endif
+
+    part_ux = current%part_p(1) * ipart_mc
+    part_uy = current%part_p(2) * ipart_mc
+    part_uz = current%part_p(3) * ipart_mc 
+
+    ! Calculate v(t) from p(t)
+    ! See PSC manual page (25-27)
+    gamma_rel = SQRT(part_ux**2 + part_uy**2 + part_uz**2 + 1.0_num)
+    root = cdt / gamma_rel
+
+    ! Move particles by a full time-step
+    part_x = part_x + part_ux * root
+    part_y = part_y + part_uy * root
+    part_z = part_z + part_uz * root
+
+    current%part_pos = current%part_pos + (/delta_x, delta_y, delta_z/)
+#ifndef NO_PARTICLE_PROBES
+    final_part_x = current%part_pos(1)
+    final_part_y = current%part_pos(2)
+    final_part_z = current%part_pos(3)
+#endif
+
+#ifndef NO_PARTICLE_PROBES
+    IF (probes_for_species) THEN
+      ! Compare the current particle with the parameters of any probes in
+      ! the system. These particles are copied into a separate part of the
+      ! output file.
+
+      current_probe => species_list(ispecies)%attached_probes
+      current_energy = (gamma_rel - 1.0_num) * c / ipart_mc
+
+      ! Cycle through probes
+      DO WHILE(ASSOCIATED(current_probe))
+        ! Unidirectional probe
+        IF (current_energy > current_probe%ek_min) THEN
+          IF (current_energy < current_probe%ek_max) THEN
+
+            d_init  = SUM(current_probe%normal * (current_probe%point &
+                - (/init_part_x, init_part_y, init_part_z/)))
+            d_final = SUM(current_probe%normal * (current_probe%point &
+                - (/final_part_x, final_part_y, final_part_z/)))
+            IF (d_final < 0.0_num .AND. d_init >= 0.0_num) THEN
+              ! this particle is wanted so copy it to the list associated
+              ! with this probe
+              ALLOCATE(particle_copy)
+              particle_copy = current
+              ! Fraction of step until particle hits probe
+              path_frac = SUM(current_probe%normal*(current_probe%point - &
+                  (/init_part_x,init_part_y,init_part_z/))) &
+                  /SUM(current_probe%normal * (/final_part_x-init_part_x, &
+                  final_part_y-init_part_y, &
+                  final_part_z-init_part_z/))
+              ! Position of particle on probe
+              particle_copy%part_pos = path_frac * &
+                  (/final_part_x-init_part_x, &
+                  final_part_y-init_part_y, &
+                  final_part_z-init_part_z/) &
+                  + (/init_part_x,init_part_y,init_part_z/)
+#ifdef PROBE_TIME
+              ! Note: time variable corresponds to (time at x_init)+0.5*dt
+              particle_copy%probe_time = time + dt * (path_frac - 0.5_num)
+#endif
+              CALL add_particle_to_partlist(&
+                  current_probe%sampled_particles, particle_copy)
+              NULLIFY(particle_copy)
+            END IF
+
+          END IF
+        END IF
+        current_probe => current_probe%next
+      END DO
+    END IF
+#endif
+
+    current => current%next
+  END DO
+
+END SUBROUTINE no_field_push
 
 END MODULE particles
