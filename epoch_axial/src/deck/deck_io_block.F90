@@ -657,6 +657,15 @@ CONTAINS
     ELSE IF (str_cmp(element, 'btm')) THEN
       elementselected = c_dump_btm
 
+    ELSE IF (str_cmp(element, 'bxm_old')) THEN
+      elementselected = c_dump_bxm_old
+
+    ELSE IF (str_cmp(element, 'brm_old')) THEN
+      elementselected = c_dump_brm_old
+
+    ELSE IF (str_cmp(element, 'btm_old')) THEN
+      elementselected = c_dump_btm_old
+
     ELSE IF (str_cmp(element, 'jxm')) THEN
       elementselected = c_dump_jxm
 
@@ -665,6 +674,15 @@ CONTAINS
 
     ELSE IF (str_cmp(element, 'jtm')) THEN
       elementselected = c_dump_jtm
+
+    ELSE IF (str_cmp(element, 'jxm_old')) THEN
+      elementselected = c_dump_jxm_old
+
+    ELSE IF (str_cmp(element, 'jrm_old')) THEN
+      elementselected = c_dump_jrm_old
+
+    ELSE IF (str_cmp(element, 'jtm_old')) THEN
+      elementselected = c_dump_jtm_old
 
     ELSE IF (str_cmp(element, 'ekbar') &
         .OR. str_cmp(element, 'average_particle_energy')) THEN
@@ -922,9 +940,15 @@ CONTAINS
         IF (mask_element == c_dump_bxm) bad = .FALSE.
         IF (mask_element == c_dump_brm) bad = .FALSE.
         IF (mask_element == c_dump_btm) bad = .FALSE.
+        IF (mask_element == c_dump_bxm_old) bad = .FALSE.
+        IF (mask_element == c_dump_brm_old) bad = .FALSE.
+        IF (mask_element == c_dump_btm_old) bad = .FALSE.
         IF (mask_element == c_dump_jxm) bad = .FALSE.
         IF (mask_element == c_dump_jrm) bad = .FALSE.
         IF (mask_element == c_dump_jtm) bad = .FALSE.
+        IF (mask_element == c_dump_jxm_old) bad = .FALSE.
+        IF (mask_element == c_dump_jrm_old) bad = .FALSE.
+        IF (mask_element == c_dump_jtm_old) bad = .FALSE.
         IF (mask_element == c_dump_poynt_flux) bad = .FALSE.
 
         ! Unset 'no_sum' dumpmask for grid variables
@@ -1152,24 +1176,6 @@ CONTAINS
     ! Fields
     io_block%dumpmask(c_dump_grid) = &
         IOR(io_block%dumpmask(c_dump_grid), c_io_restartable)
-    io_block%dumpmask(c_dump_ex) = &
-        IOR(io_block%dumpmask(c_dump_ex), c_io_restartable)
-    io_block%dumpmask(c_dump_ey) = &
-        IOR(io_block%dumpmask(c_dump_ey), c_io_restartable)
-    io_block%dumpmask(c_dump_ez) = &
-        IOR(io_block%dumpmask(c_dump_ez), c_io_restartable)
-    io_block%dumpmask(c_dump_bx) = &
-        IOR(io_block%dumpmask(c_dump_bx), c_io_restartable)
-    io_block%dumpmask(c_dump_by) = &
-        IOR(io_block%dumpmask(c_dump_by), c_io_restartable)
-    io_block%dumpmask(c_dump_bz) = &
-        IOR(io_block%dumpmask(c_dump_bz), c_io_restartable)
-    io_block%dumpmask(c_dump_jx) = &
-        IOR(io_block%dumpmask(c_dump_jx), c_io_restartable)
-    io_block%dumpmask(c_dump_jy) = &
-        IOR(io_block%dumpmask(c_dump_jy), c_io_restartable)
-    io_block%dumpmask(c_dump_jz) = &
-        IOR(io_block%dumpmask(c_dump_jz), c_io_restartable)
     io_block%dumpmask(c_dump_exm) = &
         IOR(io_block%dumpmask(c_dump_exm), c_io_restartable)
     io_block%dumpmask(c_dump_erm) = &
@@ -1182,12 +1188,24 @@ CONTAINS
         IOR(io_block%dumpmask(c_dump_brm), c_io_restartable)
     io_block%dumpmask(c_dump_btm) = &
         IOR(io_block%dumpmask(c_dump_btm), c_io_restartable)
+    io_block%dumpmask(c_dump_bxm_old) = &
+        IOR(io_block%dumpmask(c_dump_bxm_old), c_io_restartable)
+    io_block%dumpmask(c_dump_brm_old) = &
+        IOR(io_block%dumpmask(c_dump_brm_old), c_io_restartable)
+    io_block%dumpmask(c_dump_btm_old) = &
+        IOR(io_block%dumpmask(c_dump_btm_old), c_io_restartable)
     io_block%dumpmask(c_dump_jxm) = &
         IOR(io_block%dumpmask(c_dump_jxm), c_io_restartable)
     io_block%dumpmask(c_dump_jrm) = &
         IOR(io_block%dumpmask(c_dump_jrm), c_io_restartable)
     io_block%dumpmask(c_dump_jtm) = &
         IOR(io_block%dumpmask(c_dump_jtm), c_io_restartable)
+    io_block%dumpmask(c_dump_jxm_old) = &
+        IOR(io_block%dumpmask(c_dump_jxm_old), c_io_restartable)
+    io_block%dumpmask(c_dump_jrm_old) = &
+        IOR(io_block%dumpmask(c_dump_jrm_old), c_io_restartable)
+    io_block%dumpmask(c_dump_jtm_old) = &
+        IOR(io_block%dumpmask(c_dump_jtm_old), c_io_restartable)
     ! CPML boundaries
     io_block%dumpmask(c_dump_cpml_psi_eyx) = &
         IOR(io_block%dumpmask(c_dump_cpml_psi_eyx), c_io_restartable)

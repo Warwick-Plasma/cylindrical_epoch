@@ -149,6 +149,7 @@ PROGRAM pic
       CALL bfield_final_bcs
     ELSE
       time = time + dt / 2.0_num
+      CALL old_field_bcs
       CALL update_eb_fields_final
       CALL moving_window
     END IF

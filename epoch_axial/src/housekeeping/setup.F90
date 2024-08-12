@@ -795,6 +795,9 @@ CONTAINS
     INTEGER, POINTER :: species_subtypes(:)
     INTEGER, POINTER :: species_subtypes_i4(:), species_subtypes_i8(:)
     REAL(num) :: offset_x_min, full_x_min, offset_x_max
+    REAL(num), ALLOCATABLE :: temp_modes(:,:,:)
+
+    ALLOCATE(temp_modes(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
 
     got_full = .FALSE.
     npart_global = 0
@@ -890,13 +893,25 @@ CONTAINS
 #endif
     END IF
 
-    ex = 0.0_num
-    ey = 0.0_num
-    ez = 0.0_num
+    exm = 0.0_num
+    erm = 0.0_num
+    etm = 0.0_num
 
-    bx = 0.0_num
-    by = 0.0_num
-    bz = 0.0_num
+    bxm = 0.0_num
+    brm = 0.0_num
+    btm = 0.0_num
+
+    bxm_old = 0.0_num
+    brm_old = 0.0_num
+    btm_old = 0.0_num
+
+    jxm = 0.0_num
+    jrm = 0.0_num
+    jtm = 0.0_num
+
+    jxm_old = 0.0_num
+    jrm_old = 0.0_num
+    jtm_old = 0.0_num
 
     dt_from_restart = 0.0_num
 
@@ -1159,7 +1174,8 @@ CONTAINS
       CASE(c_blocktype_plain_variable)
         CALL sdf_read_plain_variable_info(sdf_handle, dims, str1, mesh_id)
 
-        IF (.NOT.str_cmp(mesh_id, 'grid')) CYCLE
+        IF (.NOT.str_cmp(mesh_id, 'grid').AND..NOT.str_cmp(mesh_id, &
+            'mode_grid')) CYCLE
 
         IF (dims(1) /= nx_global .OR. dims(2) /= ny_global) THEN
           IF (rank == 0) THEN
@@ -1177,41 +1193,174 @@ CONTAINS
           STOP
         END IF
 
-        IF (str_cmp(block_id, 'ex')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, ex, &
-              subtype_field, subarray_field)
+        ! Load field modes. Note that field-modes which can be evaluated on the
+        ! r=0 axis require an extra stagger, as the normal EPOCH file-writers
+        ! ignore cells with index 0, so they were written as staggered arrays
+        IF (str_cmp(block_id, 'exm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          exm(:,1-ng:ny+ng-1,:) = exm(:,1-ng:ny+ng-1,:) &
+              + temp_modes(:,2-ng:ny+ng,:)
 
-        ELSE IF (str_cmp(block_id, 'ey')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, ey, &
-              subtype_field, subarray_field)
+        ELSE IF (str_cmp(block_id, 'exm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          exm(:,1-ng:ny+ng-1,:) = exm(:,1-ng:ny+ng-1,:) &
+              + imagi*temp_modes(:,2-ng:ny+ng,:)
 
-        ELSE IF (str_cmp(block_id, 'ez')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, ez, &
-              subtype_field, subarray_field)
+        ELSE IF (str_cmp(block_id, 'erm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          erm = erm + temp_modes
 
-        ELSE IF (str_cmp(block_id, 'bx')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, bx, &
-              subtype_field, subarray_field)
+        ELSE IF (str_cmp(block_id, 'erm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          erm = erm + imagi*temp_modes
 
-        ELSE IF (str_cmp(block_id, 'by')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, by, &
-              subtype_field, subarray_field)
+        ELSE IF (str_cmp(block_id, 'etm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          etm(:,1-ng:ny+ng-1,:) = etm(:,1-ng:ny+ng-1,:) &
+              + temp_modes(:,2-ng:ny+ng,:)
 
-        ELSE IF (str_cmp(block_id, 'bz')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, bz, &
-              subtype_field, subarray_field)
+        ELSE IF (str_cmp(block_id, 'etm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          etm(:,1-ng:ny+ng-1,:) = etm(:,1-ng:ny+ng-1,:) &
+              + imagi*temp_modes(:,2-ng:ny+ng,:)
 
-        ELSE IF (str_cmp(block_id, 'jx')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, jx, &
-              subtype_field, subarray_field_big)
+        ELSE IF (str_cmp(block_id, 'bxm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          bxm = bxm + temp_modes
 
-        ELSE IF (str_cmp(block_id, 'jy')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, jy, &
-              subtype_field, subarray_field_big)
+        ELSE IF (str_cmp(block_id, 'bxm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          bxm = bxm + imagi*temp_modes
 
-        ELSE IF (str_cmp(block_id, 'jz')) THEN
-          CALL sdf_read_plain_variable(sdf_handle, jz, &
-              subtype_field, subarray_field_big)
+        ELSE IF (str_cmp(block_id, 'brm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          brm(:,1-ng:ny+ng-1,:) = brm(:,1-ng:ny+ng-1,:) &
+              + temp_modes(:,2-ng:ny+ng,:)
+
+        ELSE IF (str_cmp(block_id, 'brm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          brm(:,1-ng:ny+ng-1,:) = brm(:,1-ng:ny+ng-1,:) &
+              + imagi*temp_modes(:,2-ng:ny+ng,:)
+
+        ELSE IF (str_cmp(block_id, 'btm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          btm = btm + temp_modes
+
+        ELSE IF (str_cmp(block_id, 'btm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          btm = btm + imagi*temp_modes
+
+        ELSE IF (str_cmp(block_id, 'bxm_old_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          bxm_old = bxm_old + temp_modes
+
+        ELSE IF (str_cmp(block_id, 'bxm_old_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          bxm_old = bxm_old + imagi*temp_modes
+
+        ELSE IF (str_cmp(block_id, 'brm_old_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          brm_old(:,1-ng:ny+ng-1,:) = brm_old(:,1-ng:ny+ng-1,:) &
+              + temp_modes(:,2-ng:ny+ng,:)
+
+        ELSE IF (str_cmp(block_id, 'brm_old_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          brm_old(:,1-ng:ny+ng-1,:) = brm_old(:,1-ng:ny+ng-1,:) &
+              + imagi*temp_modes(:,2-ng:ny+ng,:)
+
+        ELSE IF (str_cmp(block_id, 'btm_old_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          btm_old = btm_old + temp_modes
+
+        ELSE IF (str_cmp(block_id, 'btm_old_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode)
+          btm_old = btm_old + imagi*temp_modes
+
+        ELSE IF (str_cmp(block_id, 'jxm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jxm(:,1-jng:ny+jng-1,:) = jxm(:,1-jng:ny+jng-1,:) &
+              + temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jxm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jxm(:,1-jng:ny+jng-1,:) = jxm(:,1-jng:ny+jng-1,:) &
+              + imagi*temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jrm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jrm = jrm + temp_modes
+
+        ELSE IF (str_cmp(block_id, 'jrm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jrm = jrm + imagi*temp_modes
+
+        ELSE IF (str_cmp(block_id, 'jtm_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jtm(:,1-jng:ny+jng-1,:) = jtm(:,1-jng:ny+jng-1,:) &
+              + temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jtm_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jtm(:,1-jng:ny+jng-1,:) = jtm(:,1-jng:ny+jng-1,:) &
+              + imagi*temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jxm_old_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jxm_old(:,1-jng:ny+jng-1,:) = jxm_old(:,1-jng:ny+jng-1,:) &
+              + temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jxm_old_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jxm_old(:,1-jng:ny+jng-1,:) = jxm_old(:,1-jng:ny+jng-1,:) &
+              + imagi*temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jrm_old_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jrm_old = jrm_old + temp_modes
+
+        ELSE IF (str_cmp(block_id, 'jrm_old_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jrm_old = jrm_old + imagi*temp_modes
+
+        ELSE IF (str_cmp(block_id, 'jtm_old_real')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jtm_old(:,1-jng:ny+jng-1,:) = jtm_old(:,1-jng:ny+jng-1,:) &
+              + temp_modes(:,2-jng:ny+jng,:)
+
+        ELSE IF (str_cmp(block_id, 'jtm_old_imag')) THEN
+          CALL sdf_read_plain_variable(sdf_handle, temp_modes, &
+              subtype_mode, subarray_mode_big)
+          jtm_old(:,1-jng:ny+jng-1,:) = jtm_old(:,1-jng:ny+jng-1,:) &
+              + imagi*temp_modes(:,2-jng:ny+jng,:)
 
         ELSE IF (str_cmp(block_id, 'cpml_psi_eyx')) THEN
           CALL sdf_read_plain_variable(sdf_handle, cpml_psi_eyx, &
@@ -1247,6 +1396,8 @@ CONTAINS
 
         END IF
 
+        temp_modes = 0.0_num
+     
       CASE(c_blocktype_point_variable)
         CALL sdf_read_point_variable_info(sdf_handle, npart, mesh_id, &
             str1, species_id)
@@ -1412,6 +1563,8 @@ CONTAINS
     CALL setup_background_species
 
     IF (rank == 0) PRINT*, 'Load from restart dump OK'
+
+    DEALLOCATE(temp_modes)
 
   END SUBROUTINE restart_data
 

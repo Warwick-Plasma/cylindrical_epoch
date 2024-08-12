@@ -378,6 +378,14 @@ CONTAINS
     subarray_field_r4 = create_current_field_subarray(ng, MPI_REAL4)
     subarray_field_big_r4 = create_current_field_subarray(jng, MPI_REAL4)
 
+    subtype_mode = create_current_field_mode_subtype(mpireal)
+    subarray_mode = create_current_field_mode_subarray(ng, mpireal)
+    subarray_mode_big = create_current_field_mode_subarray(jng, mpireal)
+
+    subtype_mode_r4 = create_current_field_mode_subtype(MPI_REAL4)
+    subarray_mode_r4 = create_current_field_mode_subarray(ng, MPI_REAL4)
+    subarray_mode_big_r4 = create_current_field_mode_subarray(jng, MPI_REAL4)
+
     ALLOCATE(species_subtypes(n_species))
     ALLOCATE(species_subtypes_i4(n_species))
     ALLOCATE(species_subtypes_i8(n_species))

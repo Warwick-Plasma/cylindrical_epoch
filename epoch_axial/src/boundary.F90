@@ -1355,11 +1355,21 @@ CONTAINS
   SUBROUTINE efield_bcs
 
     INTEGER :: i
+    COMPLEX(num), ALLOCATABLE :: temp_array(:,:,:)
 
-    ! These are the MPI boundaries
-    CALL field_mode_bc(exm, ng)
+    ! These are the MPI boundaries. A shift is required on r-staggered variables
+    ! as the ir = 0 index is not a ghost cell in cylindrical
+    ALLOCATE(temp_array(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
+    temp_array(:,2-ng:ny+ng,:) = exm(:,1-ng:ny+ng-1,:)
+    CALL field_mode_bc(temp_array, ng)
+    exm(:,1-ng:ny+ng-1,:) = temp_array(:,2-ng:ny+ng,:)
+    
     CALL field_mode_bc(erm, ng)
-    CALL field_mode_bc(etm, ng)
+    
+    temp_array(:,2-ng:ny+ng,:) = etm(:,1-ng:ny+ng-1,:)
+    CALL field_mode_bc(temp_array, ng)
+    etm(:,1-ng:ny+ng-1,:) = temp_array(:,2-ng:ny+ng,:)
+    DEALLOCATE(temp_array)
 
     ! Perfectly conducting boundaries
     DO i = c_bd_x_min, c_bd_x_max, c_bd_x_max - c_bd_x_min
@@ -1408,11 +1418,19 @@ CONTAINS
 
     LOGICAL, INTENT(IN) :: mpi_only
     INTEGER :: i
+    COMPLEX(num), ALLOCATABLE :: temp_array(:,:,:)
 
-    ! These are the MPI boundaries
+    ! These are the MPI boundaries. A shift is required on r-staggered variables
+    ! as the ir = 0 index is not a ghost cell in cylindrical
+    ALLOCATE(temp_array(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
     CALL field_mode_bc(bxm, ng)
-    CALL field_mode_bc(brm, ng)
+
+    temp_array(:,2-ng:ny+ng,:) = brm(:,1-ng:ny+ng-1,:)
+    CALL field_mode_bc(temp_array, ng)
+    brm(:,1-ng:ny+ng-1,:) = temp_array(:,2-ng:ny+ng,:)
+
     CALL field_mode_bc(btm, ng)
+    DEALLOCATE(temp_array)
 
     IF (mpi_only) RETURN
 
@@ -1456,6 +1474,31 @@ CONTAINS
     END DO
 
   END SUBROUTINE bfield_bcs
+
+
+
+  SUBROUTINE old_field_bcs
+
+    ! On restart, we need to correctly handle the old-B and old-J arrays, as we
+    ! need to fill the ir = ny index on ranks which aren't on rmax
+
+    INTEGER :: i
+    COMPLEX(num), ALLOCATABLE :: temp_array(:,:,:)
+
+    ! These are the MPI boundaries. A shift is required on r-staggered variables
+    ! as the ir = 0 index is not a ghost cell in cylindrical
+    ALLOCATE(temp_array(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
+    CALL field_mode_bc(bxm_old, ng)
+
+    temp_array(:,2-ng:ny+ng,:) = brm_old(:,1-ng:ny+ng-1,:)
+    CALL field_mode_bc(temp_array, ng)
+    brm_old(:,1-ng:ny+ng-1,:) = temp_array(:,2-ng:ny+ng,:)
+
+    CALL field_mode_bc(btm_old, ng)
+    DEALLOCATE(temp_array)
+
+
+  END SUBROUTINE old_field_bcs
 
 
 

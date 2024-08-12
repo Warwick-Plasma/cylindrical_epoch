@@ -625,12 +625,18 @@ MODULE constants
   INTEGER, PARAMETER :: c_dump_bxm               = 75
   INTEGER, PARAMETER :: c_dump_brm               = 76
   INTEGER, PARAMETER :: c_dump_btm               = 77
-  INTEGER, PARAMETER :: c_dump_jxm               = 78
-  INTEGER, PARAMETER :: c_dump_jrm               = 79
-  INTEGER, PARAMETER :: c_dump_jtm               = 80
-  INTEGER, PARAMETER :: c_dump_probe_time        = 81
-  INTEGER, PARAMETER :: c_dump_num_dens_mode     = 82
-  INTEGER, PARAMETER :: num_vars_to_dump         = 82
+  INTEGER, PARAMETER :: c_dump_bxm_old           = 78
+  INTEGER, PARAMETER :: c_dump_brm_old           = 79
+  INTEGER, PARAMETER :: c_dump_btm_old           = 80
+  INTEGER, PARAMETER :: c_dump_jxm               = 81
+  INTEGER, PARAMETER :: c_dump_jrm               = 82
+  INTEGER, PARAMETER :: c_dump_jtm               = 83
+  INTEGER, PARAMETER :: c_dump_jxm_old           = 84
+  INTEGER, PARAMETER :: c_dump_jrm_old           = 85
+  INTEGER, PARAMETER :: c_dump_jtm_old           = 86
+  INTEGER, PARAMETER :: c_dump_probe_time        = 87
+  INTEGER, PARAMETER :: c_dump_num_dens_mode     = 88
+  INTEGER, PARAMETER :: num_vars_to_dump         = 88
 
   INTEGER, PARAMETER :: c_subset_random     = 1
   INTEGER, PARAMETER :: c_subset_gamma_min  = 2
