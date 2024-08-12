@@ -522,6 +522,26 @@ CONTAINS
           'Magnetic Field Modes/Brm/imag', 'T', c_stagger_brm, AIMAG(brm))
       CALL write_mode_field(c_dump_btm, code, 'btm_imag', &
           'Magnetic Field Modes/Btm/imag', 'T', c_stagger_btm, AIMAG(btm))
+
+      CALL write_mode_field(c_dump_bxm_old, code, 'bxm_old_real', &
+          'Magnetic Field Modes/Bxm_old/real', 'T', c_stagger_bxm, &
+          REAL(bxm_old,num))
+      CALL write_mode_field(c_dump_brm_old, code, 'brm_old_real', &
+          'Magnetic Field Modes/Brm_old/real', 'T', c_stagger_brm, &
+          REAL(brm_old,num))
+      CALL write_mode_field(c_dump_btm_old, code, 'btm_old_real', &
+          'Magnetic Field Modes/Btm_old/real', 'T', c_stagger_btm, &
+          REAL(btm_old,num))
+
+      CALL write_mode_field(c_dump_bxm_old, code, 'bxm_old_imag', &
+          'Magnetic Field Modes/Bxm_old/imag', 'T', c_stagger_bxm, &
+          AIMAG(bxm_old))
+      CALL write_mode_field(c_dump_brm_old, code, 'brm_old_imag', &
+          'Magnetic Field Modes/Brm_old/imag', 'T', c_stagger_brm, &
+          AIMAG(brm_old))
+      CALL write_mode_field(c_dump_btm_old, code, 'btm_old_imag', &
+          'Magnetic Field Modes/Btm_old/imag', 'T', c_stagger_btm, &
+          AIMAG(btm_old))
       
       CALL write_mode_field(c_dump_jxm, code, 'jxm_real', &
           'Current Modes/Jxm/real', 'A/m^2', c_stagger_jxm, REAL(jxm,num))
@@ -536,6 +556,23 @@ CONTAINS
           'Current Modes/Jrm/imag', 'A/m^2', c_stagger_jrm, AIMAG(jrm))
       CALL write_mode_field(c_dump_jtm, code, 'jtm_imag', &
           'Current Modes/Jtm/imag', 'A/m^2', c_stagger_jtm, AIMAG(jtm))
+
+      CALL write_mode_field(c_dump_jxm_old, code, 'jxm_old_real', &
+          'Current Modes/Jxm_old/real', 'A/m^2', c_stagger_jxm, &
+          REAL(jxm_old,num))
+      CALL write_mode_field(c_dump_jrm_old, code, 'jrm_old_real', &
+          'Current Modes/Jrm_old/real', 'A/m^2', c_stagger_jrm, &
+          REAL(jrm_old,num))
+      CALL write_mode_field(c_dump_jtm_old, code, 'jtm_old_real', &
+          'Current Modes/Jtm_old/real', 'A/m^2', c_stagger_jtm, &
+          REAL(jtm_old,num))
+
+      CALL write_mode_field(c_dump_jxm_old, code, 'jxm_old_imag', &
+          'Current Modes/Jxm_old/imag', 'A/m^2', c_stagger_jxm, AIMAG(jxm_old))
+      CALL write_mode_field(c_dump_jrm_old, code, 'jrm_old_imag', &
+          'Current Modes/Jrm_old/imag', 'A/m^2', c_stagger_jrm, AIMAG(jrm_old))
+      CALL write_mode_field(c_dump_jtm_old, code, 'jtm_old_imag', &
+          'Current Modes/Jtm_old/imag', 'A/m^2', c_stagger_jtm, AIMAG(jtm_old))
 
       IF (cpml_boundaries) THEN
         CALL sdf_write_srl(sdf_handle, 'boundary_thickness', &
@@ -2003,6 +2040,7 @@ CONTAINS
     CHARACTER(LEN=*), INTENT(IN) :: block_id, name, units
     INTEGER, INTENT(IN) :: stagger
     REAL(num), DIMENSION(1-ng:,1-ng:,0:), INTENT(IN) :: array
+    REAL(num), ALLOCATABLE :: array_print(:,:,:)
     INTEGER :: mask, dumped
     INTEGER :: subtype, subarray
     INTEGER :: dims(3)
@@ -2044,15 +2082,30 @@ CONTAINS
       END IF
     END IF
 
+    ! In cylindrical EPOCH, values on the r=0 axis are important, but ir=0 is
+    ! not usually printed. We must stagger the indices on the array to print
+    ALLOCATE(array_print(1-ng:nx+ng,1-ng:ny+ng,0:n_mode-1))
+    IF (stagger == c_stagger_exm .OR. stagger == c_stagger_etm) THEN
+      array_print = 0
+      IF (.NOT. current_dump) THEN 
+        array_print(:,2-ng:ny+ng,:) = array(:,1-ng:ny+ng-1,:)
+      ELSE
+        array_print(:,2-jng:ny+jng,:) = array(:,1-jng:ny+jng-1,:)
+      END IF
+    ELSE 
+      array_print = array
+    END IF
+
     dumped_skip_dir = 0
     dumped = 1
 
     IF (IAND(mask, code) == 0) RETURN
 
     CALL sdf_write_plain_variable(sdf_handle, TRIM(block_id), &
-        TRIM(name), TRIM(units), dims, stagger, 'mode_grid', array, &
+        TRIM(name), TRIM(units), dims, stagger, 'mode_grid', array_print, &
         subtype, subarray, convert)
     dump_field_grid = .TRUE.
+    DEALLOCATE(array_print)
 
   END SUBROUTINE write_mode_field
 

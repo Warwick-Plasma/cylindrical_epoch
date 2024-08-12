@@ -1,3 +1,7 @@
+# This input deck is a modified version of the Gaussian beam deck. It is set-up
+# such that each output dump is a restart file. To restart from a particular
+# sdf file, uncomment the "restart_snapshot" line in the control block.
+
 begin:control
   nx = 500
   ny = 100
@@ -12,6 +16,10 @@ begin:control
 
   stdout_frequency = 10
   n_mode = 2
+  
+  # This line is currently set to restart from 0002.sdf. Run this simulation
+  # normally first to generate this restart file. 
+  # restart_snapshot = 2
 end:control
 
 
@@ -47,10 +55,10 @@ begin:laser
 end:laser
 
 begin:output
-  name = normal
 
   # Simulated time between output dumps
   dt_snapshot = 25 * femto
+  restart_dump_every = 0
 
   # Properties on grid
   grid = always
@@ -60,4 +68,5 @@ begin:output
   bxm = always
   brm = always
   btm = always
+ 
 end:output

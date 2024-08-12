@@ -417,7 +417,7 @@ CONTAINS
     REAL(num), DIMENSION(:), ALLOCATABLE :: source1, source2
     COMPLEX(num), DIMENSION(:), ALLOCATABLE :: source_r, source_t
     REAL(num), DIMENSION(:), ALLOCATABLE :: r_d_vals
-    INTEGER :: n, ir, im, ir_l
+    INTEGER :: n, ir, im, ir_l, ir_h
     TYPE(laser_block), POINTER :: current
 
     n = c_bd_x_min
@@ -487,12 +487,12 @@ CONTAINS
         source_r = 0.0_num
       END IF
 
-      btm(1,0:ny,im) = sum * ( 4.0_num * source_t(0:ny) &
-          + 2.0_num * (erm_x_min(0:ny,im) + c * btm_x_min(0:ny,im)) &
-          - 2.0_num * erm(1,0:ny,im) &
-          + imagi * im * c**2 * dt * bxm(1,0:ny,im) / r_d_vals &
-          + dt_eps * jrm(1,0:ny,im) &
-          + diff * btm(2,0:ny,im))
+      btm(1,1:ny,im) = sum * ( 4.0_num * source_t(1:ny) &
+          + 2.0_num * (erm_x_min(1:ny,im) + c * btm_x_min(1:ny,im)) &
+          - 2.0_num * erm(1,1:ny,im) &
+          + imagi * im * c**2 * dt * bxm(1,1:ny,im) / r_d_vals &
+          + dt_eps * jrm(1,1:ny,im) &
+          + diff * btm(2,1:ny,im))
 
       ! Set the low ir limit for the Brm field
       IF (y_min_boundary) THEN
@@ -501,12 +501,17 @@ CONTAINS
       ELSE
         ir_l = 0
       END IF
-      brm(1,ir_l:ny,im) = sum * (-4.0_num * source_r(ir_l:ny) &
-          - 2.0_num * (etm_x_min(ir_l:ny,im) + c * brm_x_min(ir_l:ny,im)) &
-          + 2.0_num * etm(1,ir_l:ny,im) &
-          - lr * (bxm(1,ir_l+1:ny+1,im) - bxm(1,ir_l:ny,im)) &
-          - dt_eps * jtm(1,ir_l:ny,im) &
-          + diff * brm(2,ir_l:ny,im))
+      IF (y_max_boundary) THEN 
+        ir_h = ny-1
+      ELSE
+        ir_h = ny
+      END IF
+      brm(1,ir_l:ir_h,im) = sum * (-4.0_num * source_r(ir_l:ir_h) &
+          - 2.0_num * (etm_x_min(ir_l:ir_h,im) + c * brm_x_min(ir_l:ir_h,im)) &
+          + 2.0_num * etm(1,ir_l:ir_h,im) &
+          - lr * (bxm(1,ir_l+1:ir_h+1,im) - bxm(1,ir_l:ir_h,im)) &
+          - dt_eps * jtm(1,ir_l:ir_h,im) &
+          + diff * brm(2,ir_l:ir_h,im))
 
     END DO
 
@@ -525,7 +530,7 @@ CONTAINS
     REAL(num), DIMENSION(:), ALLOCATABLE :: source1, source2
     COMPLEX(num), DIMENSION(:), ALLOCATABLE :: source_t, source_r
     REAL(num), DIMENSION(:), ALLOCATABLE :: r_d_vals
-    INTEGER :: laserpos, n, ir, im, ir_l
+    INTEGER :: laserpos, n, ir, im, ir_l, ir_h
     TYPE(laser_block), POINTER :: current
 
     n = c_bd_x_max
@@ -596,12 +601,12 @@ CONTAINS
         source_r = 0.0_num
       END IF
 
-      btm(nx,0:ny,im) = sum * ( -4.0_num * source_t &
-          - 2.0_num * (erm_x_max(0:ny,im) + c * btm_x_max(0:ny,im)) &
-          + 2.0_num * erm(nx-1,0:ny,im) &
-          - imagi * im * c**2 * dt * bxm(nx-1,0:ny,im) / r_d_vals &
-          - dt_eps * jrm(nx-1,0:ny,im) &
-          + diff * btm(nx-1,0:ny,im))
+      btm(nx,1:ny,im) = sum * ( -4.0_num * source_t &
+          - 2.0_num * (erm_x_max(1:ny,im) + c * btm_x_max(1:ny,im)) &
+          + 2.0_num * erm(nx-1,1:ny,im) &
+          - imagi * im * c**2 * dt * bxm(nx-1,1:ny,im) / r_d_vals &
+          - dt_eps * jrm(nx-1,1:ny,im) &
+          + diff * btm(nx-1,1:ny,im))
 
       ! Set the low ir limit for the Brm field
       IF (y_min_boundary) THEN
@@ -610,12 +615,17 @@ CONTAINS
       ELSE
         ir_l = 0
       END IF
-      brm(nx,ir_l:ny,im) = sum * ( 4.0_num * source_r(ir_l:ny) &
-          + 2.0_num * (etm_x_max(ir_l:ny,im) + c * brm_x_max(ir_l:ny,im)) &
-          - 2.0_num * etm(nx-1,ir_l:ny,im) &
-          + lr * (bxm(nx-1,ir_l+1:ny+1,im) - bxm(nx-1,ir_l:ny,im)) &
-          + dt_eps * jtm(nx-1,ir_l:ny,im) &
-          + diff * brm(nx-1,ir_l:ny,im))
+      IF (y_max_boundary) THEN 
+        ir_h = ny-1
+      ELSE
+        ir_h = ny
+      END IF
+      brm(nx,ir_l:ir_h,im) = sum * ( 4.0_num * source_r(ir_l:ir_h) &
+          + 2.0_num * (etm_x_max(ir_l:ir_h,im) + c * brm_x_max(ir_l:ir_h,im)) &
+          - 2.0_num * etm(nx-1,ir_l:ir_h,im) &
+          + lr * (bxm(nx-1,ir_l+1:ir_h+1,im) - bxm(nx-1,ir_l:ir_h,im)) &
+          + dt_eps * jtm(nx-1,ir_l:ir_h,im) &
+          + diff * brm(nx-1,ir_l:ir_h,im))
     END DO
 
     DEALLOCATE(source1, source2, source_r, source_t, r_d_vals)
@@ -629,7 +639,7 @@ CONTAINS
     REAL(num) :: t_env
     REAL(num) :: dtc2, inv_r, dtc2_4r, icdt_2r, lx, ly, sum_x, sum_t, dt_2eps
     REAL(num), DIMENSION(:), ALLOCATABLE :: source1, source2
-    INTEGER :: i, im
+    INTEGER :: i, im, ix_l, ix_h
     TYPE(laser_block), POINTER :: current
 
     dtc2 = dt * c**2
@@ -642,24 +652,39 @@ CONTAINS
     sum_t = 1.0_num / (ly + c + dtc2_4r)
     dt_2eps = 0.5_num * dt / epsilon0
 
-    DO im = 0, n_mode-1
-      bxm(0:nx,ny,im) = sum_x * (-bxm(0:nx,ny-1,im) * (c - ly) &
-          -bxm_old(0:nx,ny,im) * (-c + ly) &
-          -bxm_old(0:nx,ny-1,im) * (-c - ly) &
-          -c * dt * inv_r * etm(0:nx,ny-1,im) &
-          + 0.5_num * lx * (brm(1:nx+1,ny-1,im) - brm(0:nx,ny-1,im) &
-          + brm_old(1:nx+1,ny-1,im) - brm_old(0:nx,ny-1,im)) &
-          - icdt_2r * REAL(im, num) * (erm(0:nx,ny,im) + erm(0:nx,ny-1,im)) &
-          - dt_2eps * (jtm(0:nx,ny-1,im) + jtm_old(0:nx,ny-1,im)))
+    ! Ignore cells in the high-r simulation corners. Leave these for x-bcs
+    IF (x_min_boundary) THEN
+      ix_l = 1
+    ELSE
+      ix_l = 0
+    END IF
 
-      btm(0:nx,ny,im) = sum_t * (-btm(0:nx,ny-1,im) * (c - ly + dtc2_4r) &
-          -btm_old(0:nx,ny,im) * (-c + ly + dtc2_4r) &
-          -btm_old(0:nx,ny-1,im) * (-c - ly + dtc2_4r) &
-          - 0.5_num * lx / c * (erm(0:nx,ny,im) + erm(0:nx,ny-1,im) &
-          - erm(-1:nx-1,ny,im) - erm(-1:nx-1,ny-1,im)) &
-          - icdt_2r * REAL(im, num) * c * (brm(0:nx,ny-1,im) &
-          + brm_old(0:nx,ny-1,im)) &
-          + dt_2eps * (jxm(0:nx,ny-1,im) + jxm_old(0:nx,ny-1,im)))
+    IF (x_max_boundary) THEN
+      ix_h = nx-1
+    ELSE
+      ix_h = nx
+    END IF
+
+    DO im = 0, n_mode-1
+      bxm(ix_l:ix_h,ny,im) = sum_x * (-bxm(ix_l:ix_h,ny-1,im) * (c - ly) &
+          -bxm_old(ix_l:ix_h,ny,im) * (-c + ly) &
+          -bxm_old(ix_l:ix_h,ny-1,im) * (-c - ly) &
+          -c * dt * inv_r * etm(ix_l:ix_h,ny-1,im) &
+          + 0.5_num * lx * (brm(ix_l+1:ix_h+1,ny-1,im) &
+          - brm(ix_l:ix_h,ny-1,im) &
+          + brm_old(ix_l+1:ix_h+1,ny-1,im) - brm_old(ix_l:ix_h,ny-1,im)) &
+          - icdt_2r * REAL(im, num) * (erm(ix_l:ix_h,ny,im) &
+          + erm(ix_l:ix_h,ny-1,im)) &
+          - dt_2eps * (jtm(ix_l:ix_h,ny-1,im) + jtm_old(ix_l:ix_h,ny-1,im)))
+
+      btm(1:nx,ny,im) = sum_t * (-btm(1:nx,ny-1,im) * (c - ly + dtc2_4r) &
+          -btm_old(1:nx,ny,im) * (-c + ly + dtc2_4r) &
+          -btm_old(1:nx,ny-1,im) * (-c - ly + dtc2_4r) &
+          - 0.5_num * lx / c * (erm(1:nx,ny,im) + erm(1:nx,ny-1,im) &
+          - erm(0:nx-1,ny,im) - erm(0:nx-1,ny-1,im)) &
+          - icdt_2r * REAL(im, num) * c * (brm(1:nx,ny-1,im) &
+          + brm_old(1:nx,ny-1,im)) &
+          + dt_2eps * (jxm(1:nx,ny-1,im) + jxm_old(1:nx,ny-1,im)))
     END DO
 
   END SUBROUTINE outflow_bcs_r_max
