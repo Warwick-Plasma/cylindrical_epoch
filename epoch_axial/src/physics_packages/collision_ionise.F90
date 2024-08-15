@@ -1288,7 +1288,7 @@ CONTAINS
     sub_ion%part_pos = ion%part_pos
 #ifndef PER_SPECIES_WEIGHT
     sub_ion%weight = sub_ion_weight
-#elif 
+#else 
     ! This subroutine should not be used if we have species weight!
     sub_ion_weight = 0.0_num
 #endif
