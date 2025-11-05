@@ -289,10 +289,14 @@ CONTAINS
 
         avg => io_block_list(ib)%averaged_data(io)
         IF (avg%dump_single) THEN
+          ALLOCATE(avg%r4zarray(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
           ALLOCATE(avg%r4array(1-ng:nx+ng, 1-ng:ny+ng, nspec_local))
+          avg%r4zarray = 0.0_num
           avg%r4array = 0.0_num
         ELSE
+          ALLOCATE(avg%zarray(1-ng:nx+ng, 1-ng:ny+ng, 0:n_mode-1))
           ALLOCATE(avg%array(1-ng:nx+ng, 1-ng:ny+ng, nspec_local))
+          avg%zarray = 0.0_num
           avg%array = 0.0_num
         END IF
 

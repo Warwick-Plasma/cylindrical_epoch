@@ -27,6 +27,7 @@ MODULE redblack_module
   REAL(r4), DIMENSION(:,:,:), POINTER :: field_in3dr4, field_out3dr4
   COMPLEX(num), DIMENSION(:), POINTER :: field_in1dcmplx, field_out1dcmplx
   COMPLEX(num), DIMENSION(:,:), POINTER :: field_in2dcmplx, field_out2dcmplx
+  COMPLEX(r4), DIMENSION(:,:), POINTER :: field_in2dcmplx_r4, field_out2dcmplx_r4
   COMPLEX(num), DIMENSION(:,:,:), POINTER :: field_in3dcmplx, field_out3dcmplx
   INTEGER, DIMENSION(:), POINTER :: sendtypes, recvtypes
   TYPE(particle_list), DIMENSION(:), POINTER :: pointers_send, pointers_recv
@@ -43,6 +44,7 @@ MODULE redblack_module
         redblack3d_r4, &
         redblack1d_cmplx, &
         redblack2d_cmplx, &
+        redblack2d_cmplx_r4, &
         redblack3d_cmplx
   END INTERFACE redblack
 
@@ -274,7 +276,16 @@ CONTAINS
 
   END SUBROUTINE do_send2dcmplx
 
+  SUBROUTINE do_send2dcmplx_r4(iproc)
 
+    INTEGER, INTENT(IN) :: iproc
+    INTEGER :: ierr
+
+    IF (sendtypes(iproc) /= 0) THEN
+      CALL MPI_SEND(field_in2dcmplx_r4, 1, sendtypes(iproc), iproc, tag, comm, ierr)
+    END IF
+
+  END SUBROUTINE do_send2dcmplx_r4
 
   SUBROUTINE do_recv2dcmplx(iproc)
 
@@ -288,7 +299,17 @@ CONTAINS
 
   END SUBROUTINE do_recv2dcmplx
 
+  SUBROUTINE do_recv2dcmplx_r4(iproc)
 
+    INTEGER, INTENT(IN) :: iproc
+    INTEGER :: ierr
+
+    IF (recvtypes(iproc) /= 0) THEN
+      CALL MPI_RECV(field_out2dcmplx_r4, 1, recvtypes(iproc), iproc, tag, comm, &
+          MPI_STATUS_IGNORE, ierr)
+    END IF
+
+  END SUBROUTINE do_recv2dcmplx_r4
 
   SUBROUTINE do_send3dcmplx(iproc)
 
@@ -458,6 +479,19 @@ CONTAINS
 
   END SUBROUTINE redblack2d_cmplx
 
+  SUBROUTINE redblack2d_cmplx_r4(field_in, field_out, sendtypes_in, recvtypes_in)
+
+    COMPLEX(r4), DIMENSION(1-ng:,1-ng:), TARGET, INTENT(IN) :: field_in
+    COMPLEX(r4), DIMENSION(1-ng:,1-ng:), TARGET, INTENT(OUT) :: field_out
+    INTEGER, DIMENSION(0:), TARGET, INTENT(INOUT) :: sendtypes_in, recvtypes_in
+
+    sendtypes => sendtypes_in
+    recvtypes => recvtypes_in
+    field_in2dcmplx_r4 => field_in
+    field_out2dcmplx_r4 => field_out
+    CALL redblack_main(do_send2dcmplx_r4, do_recv2dcmplx_r4)
+
+  END SUBROUTINE redblack2d_cmplx_r4
 
 
   SUBROUTINE redblack3d_cmplx(field_in, field_out, sendtypes_in, recvtypes_in)

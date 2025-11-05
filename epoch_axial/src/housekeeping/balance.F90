@@ -441,6 +441,8 @@ CONTAINS
 
     INTEGER :: nx_new, ny_new
     INTEGER, DIMENSION(c_ndims,2), INTENT(IN) :: new_domain
+    COMPLEX(num), DIMENSION(:,:,:), ALLOCATABLE :: temp_zsum
+    COMPLEX(r4), DIMENSION(:,:,:), ALLOCATABLE :: r4temp_zsum
     REAL(num), DIMENSION(:,:,:), ALLOCATABLE :: temp_sum
     REAL(r4), DIMENSION(:,:,:), ALLOCATABLE :: r4temp_sum
     REAL(num), DIMENSION(:,:), ALLOCATABLE :: temp, temp2
@@ -768,40 +770,68 @@ CONTAINS
 
       IF (io_block_list(io)%averaged_data(id)%dump_single) THEN
         IF (.NOT. ASSOCIATED(io_block_list(io)%averaged_data(id)%r4array)) CYCLE
+        IF (.NOT. ASSOCIATED(io_block_list(io)%averaged_data(id)%r4zarray)) CYCLE
+        SELECT CASE (id)
+        CASE (c_dump_exm, c_dump_erm, c_dump_etm)
+          ALLOCATE(r4temp_zsum(1-ng:nx_new+ng, 1-ng:ny_new+ng, 0:n_mode-1))
+          CALL remap_field_modes_r4(&
+              io_block_list(io)%averaged_data(id)%r4zarray(:,:,:), &
+              r4temp_zsum(:,:,:))
+        CASE DEFAULT
+          ALLOCATE(r4temp_sum(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
+          DO i = 1, nspec_local
+            CALL remap_field_r4(&
+                io_block_list(io)%averaged_data(id)%r4array(:,:,i), &
+                r4temp_sum(:,:,i))
+          END DO
+        END SELECT
 
-        ALLOCATE(r4temp_sum(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
-
-        DO i = 1, nspec_local
-          CALL remap_field_r4(&
-              io_block_list(io)%averaged_data(id)%r4array(:,:,i), &
-              r4temp_sum(:,:,i))
-        END DO
-
-        DEALLOCATE(io_block_list(io)%averaged_data(id)%r4array)
-        ALLOCATE(io_block_list(io)%averaged_data(id)&
-            %r4array(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
-
-        io_block_list(io)%averaged_data(id)%r4array = r4temp_sum
-
-        DEALLOCATE(r4temp_sum)
+        SELECT CASE (id)
+        CASE (c_dump_exm, c_dump_erm, c_dump_etm)
+          DEALLOCATE(io_block_list(io)%averaged_data(id)%r4zarray)
+          ALLOCATE(io_block_list(io)%averaged_data(id)&
+              %r4zarray(1-ng:nx_new+ng, 1-ng:ny_new+ng, 0:n_mode-1))
+          io_block_list(io)%averaged_data(id)%r4zarray = r4temp_zsum
+          DEALLOCATE(r4temp_zsum)
+        CASE DEFAULT
+          DEALLOCATE(io_block_list(io)%averaged_data(id)%r4array)
+          ALLOCATE(io_block_list(io)%averaged_data(id)&
+              %r4array(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
+          io_block_list(io)%averaged_data(id)%r4array = r4temp_sum
+          DEALLOCATE(r4temp_sum)
+        END SELECT
       ELSE
         IF (.NOT. ASSOCIATED(io_block_list(io)%averaged_data(id)%array)) CYCLE
-
-        ALLOCATE(temp_sum(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
-
-        DO i = 1, nspec_local
-          CALL remap_field(&
+        IF (.NOT. ASSOCIATED(io_block_list(io)%averaged_data(id)%zarray)) CYCLE
+        SELECT CASE (id)
+        CASE (c_dump_exm, c_dump_erm, c_dump_etm)
+          ALLOCATE(temp_zsum(1-ng:nx_new+ng, 1-ng:ny_new+ng, 0:n_mode-1))
+          CALL remap_field_modes(&
+              io_block_list(io)%averaged_data(id)%zarray(:,:,:), &
+              temp_zsum(:,:,:))
+        CASE DEFAULT
+          ALLOCATE(temp_sum(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
+          DO i = 1, nspec_local
+            CALL remap_field(&
               io_block_list(io)%averaged_data(id)%array(:,:,i), &
               temp_sum(:,:,i))
-        END DO
+          END DO
+        END SELECT
 
-        DEALLOCATE(io_block_list(io)%averaged_data(id)%array)
-        ALLOCATE(io_block_list(io)%averaged_data(id)&
+        SELECT CASE (id)
+        CASE (c_dump_exm, c_dump_erm, c_dump_etm)
+          DEALLOCATE(io_block_list(io)%averaged_data(id)%zarray)
+          ALLOCATE(io_block_list(io)%averaged_data(id)&
+              %zarray(1-ng:nx_new+ng, 1-ng:ny_new+ng, 0:n_mode-1))
+          io_block_list(io)%averaged_data(id)%zarray = temp_zsum
+          DEALLOCATE(temp_zsum)
+        CASE DEFAULT
+          DEALLOCATE(io_block_list(io)%averaged_data(id)%array)
+          ALLOCATE(io_block_list(io)%averaged_data(id)&
             %array(1-ng:nx_new+ng, 1-ng:ny_new+ng, nspec_local))
-
-        io_block_list(io)%averaged_data(id)%array = temp_sum
-
-        DEALLOCATE(temp_sum)
+          io_block_list(io)%averaged_data(id)%array = temp_sum
+          DEALLOCATE(temp_sum)
+        END SELECT
       END IF
     END DO
 
@@ -1253,6 +1283,33 @@ CONTAINS
 
   END SUBROUTINE remap_field_modes
 
+  SUBROUTINE remap_field_modes_r4(field_in, field_out)
+
+    ! Loop over all complex field modes in field_in, and write values to the 
+    ! corresponding indices in field_out
+
+    ! This is a wrapper for the field redistribution routine
+    COMPLEX(r4), DIMENSION(:,:,0:), INTENT(IN) :: field_in
+    COMPLEX(r4), DIMENSION(:,:,0:), INTENT(OUT) :: field_out
+    INTEGER, DIMENSION(c_ndims) :: n_new, cdim
+    INTEGER :: i, im
+
+    n_new = SHAPE(field_out(:,:,0)) - 2 * ng
+
+    DO i = 1, c_ndims
+      cdim(i) = c_ndims + 1 - i
+    END DO
+
+    DO im = 0,n_mode-1
+      CALL redistribute_field_2d_cmplx_r4(field_in(:,:,im), field_out(:,:,im), &
+          cdim, cell_x_min, cell_x_max, new_cell_x_min, new_cell_x_max, &
+          cell_y_min, cell_y_max, new_cell_y_min, new_cell_y_max)
+
+      CALL do_field_mpi_with_lengths_cmplx_r4(field_out(:,:,im), ng, n_new(1), &
+           n_new(2))
+    END DO
+
+  END SUBROUTINE remap_field_modes_r4
 
 
   SUBROUTINE redistribute_field_1d(field_in, field_out, cdim, &
@@ -2319,7 +2376,245 @@ CONTAINS
 
   END SUBROUTINE redistribute_field_2d_cmplx
 
+  SUBROUTINE redistribute_field_2d_cmplx_r4(field_in, field_out, cdim, &
+      old_cell_min1, old_cell_max1, new_cell_min1, new_cell_max1, &
+      old_cell_min2, old_cell_max2, new_cell_min2, new_cell_max2)
 
+    ! This subroutine redistributes the fields over the new processor layout
+    INTEGER, PARAMETER :: nd = 2
+    COMPLEX(r4), DIMENSION(1-ng:,1-ng:), INTENT(IN) :: field_in
+    COMPLEX(r4), DIMENSION(1-ng:,1-ng:), INTENT(OUT) :: field_out
+    INTEGER, DIMENSION(nd), INTENT(IN) :: cdim
+    INTEGER, DIMENSION(:), INTENT(IN) :: old_cell_min1, old_cell_max1
+    INTEGER, DIMENSION(:), INTENT(IN) :: new_cell_min1, new_cell_max1
+    INTEGER, DIMENSION(:), INTENT(IN) :: old_cell_min2, old_cell_max2
+    INTEGER, DIMENSION(:), INTENT(IN) :: new_cell_min2, new_cell_max2
+    INTEGER :: irank, basetype, n, ng0, ng1
+    INTEGER :: i, iproc, inew
+    INTEGER :: j, jproc, jnew
+    INTEGER, DIMENSION(nd) :: type_min, type_max, old_0, old_1, new_0
+    INTEGER, DIMENSION(nd) :: n_global, n_local, start, nprocs
+    INTEGER, DIMENSION(nd) :: old_min, old_max, new_min, new_max
+    INTEGER, DIMENSION(c_ndims) :: coord
+    INTEGER, DIMENSION(nd) :: old_coords, new_coords, nmin, nmax
+    INTEGER, DIMENSION(:), ALLOCATABLE :: sendtypes, recvtypes
+
+    basetype = MPI_DOUBLE_COMPLEX
+
+    ALLOCATE(sendtypes(0:nproc-1))
+    ALLOCATE(recvtypes(0:nproc-1))
+
+    DO i = 1, nd
+      old_coords(i) = old_coordinates(cdim(i))
+      new_coords(i) = coordinates(cdim(i))
+    END DO
+
+    old_min(1) = old_cell_min1(old_coords(1)+1)
+    old_max(1) = old_cell_max1(old_coords(1)+1)
+    new_min(1) = new_cell_min1(new_coords(1)+1)
+    new_max(1) = new_cell_max1(new_coords(1)+1)
+
+    old_min(2) = old_cell_min2(old_coords(2)+1)
+    old_max(2) = old_cell_max2(old_coords(2)+1)
+    new_min(2) = new_cell_min2(new_coords(2)+1)
+    new_max(2) = new_cell_max2(new_coords(2)+1)
+
+    tag = 0
+    sendtypes = 0
+    recvtypes = 0
+
+    nprocs(1) = SIZE(new_cell_min1)
+    nprocs(2) = SIZE(new_cell_min2)
+
+    nmin(1) = new_cell_min1(1)
+    nmax(1) = new_cell_max1(nprocs(1))
+    nmin(2) = new_cell_min2(1)
+    nmax(2) = new_cell_max2(nprocs(2))
+
+    ! Create array of sendtypes
+
+    DO i = 1, nd
+      n_global(i) = old_max(i) - old_min(i) + 2 * ng + 1
+    END DO
+
+    coord = coordinates
+
+    n = 2
+    type_min(n) = old_min(n)
+    type_max(n) = old_min(n)
+
+    ! Find the new processor on which the old y_min resides
+    ! This could be sped up by using bisection.
+    DO jproc = 1, nprocs(n) - 1
+      IF (new_cell_min2(jproc) <= old_min(n) &
+          .AND. new_cell_max2(jproc) >= old_min(n)) EXIT
+    END DO
+
+    DO WHILE(type_max(n) <= old_max(n))
+      coord(cdim(n)) = jproc - 1
+      type_max(n) = new_cell_max2(jproc)
+      IF (type_max(n) > old_max(n)) type_max(n) = old_max(n)
+
+      ng0 = 0
+      ng1 = 0
+      IF (type_min(n) == nmin(n)) ng0 = ng
+      IF (type_max(n) == nmax(n)) ng1 = ng
+
+      n_local(n) = type_max(n) - type_min(n) + ng0 + ng1 + 1
+      start(n) = type_min(n) - old_min(n) + ng - ng0 + 1
+
+      n = 1
+      type_min(n) = old_min(n)
+      type_max(n) = old_min(n)
+
+      ! Find the new processor on which the old x_min resides
+      ! This could be sped up by using bisection.
+      DO iproc = 1, nprocs(n) - 1
+        IF (new_cell_min1(iproc) <= old_min(n) &
+            .AND. new_cell_max1(iproc) >= old_min(n)) EXIT
+      END DO
+
+      DO WHILE(type_max(n) <= old_max(n))
+        coord(cdim(n)) = iproc - 1
+        type_max(n) = new_cell_max1(iproc)
+        IF (type_max(n) > old_max(n)) type_max(n) = old_max(n)
+
+        ng0 = 0
+        ng1 = 0
+        IF (type_min(n) == nmin(n)) ng0 = ng
+        IF (type_max(n) == nmax(n)) ng1 = ng
+
+        n_local(n) = type_max(n) - type_min(n) + ng0 + ng1 + 1
+        start(n) = type_min(n) - old_min(n) + ng - ng0 + 1
+
+        CALL MPI_CART_RANK(comm, coord, irank, errcode)
+
+        IF (rank /= irank) THEN
+          sendtypes(irank) = create_2d_array_subtype(basetype, n_local, &
+              n_global, start)
+        ELSE
+          ! New domain is on the same processor as the old domain.
+          ! Just copy the region rather than using MPI.
+          DO i = 1, nd
+            old_0(i) = start(i) - ng
+            old_1(i) = old_0(i) + n_local(i) - 1
+          END DO
+        END IF
+
+        n = 1
+        IF (type_max(n) == old_max(n)) EXIT
+        iproc = iproc + 1
+        type_min(n) = new_cell_min1(iproc)
+      END DO
+
+      n = 2
+      IF (type_max(n) == old_max(n)) EXIT
+      jproc = jproc + 1
+      type_min(n) = new_cell_min2(jproc)
+    END DO
+
+    nprocs(1) = SIZE(old_cell_min1)
+    nprocs(2) = SIZE(old_cell_min2)
+
+    ! Create array of recvtypes
+
+    DO i = 1, nd
+      n_global(i) = new_max(i) - new_min(i) + 2 * ng + 1
+    END DO
+
+    coord = old_coordinates
+
+    n = 2
+    type_min(n) = new_min(n)
+    type_max(n) = new_min(n)
+
+    ! Find the old processor on which the new y_min resides
+    ! This could be sped up by using bisection.
+    DO jproc = 1, nprocs(n) - 1
+      IF (old_cell_min2(jproc) <= new_min(n) &
+          .AND. old_cell_max2(jproc) >= new_min(n)) EXIT
+    END DO
+
+    DO WHILE(type_max(n) <= new_max(n))
+      coord(cdim(n)) = jproc - 1
+      type_max(n) = old_cell_max2(jproc)
+      IF (type_max(n) > new_max(n)) type_max(n) = new_max(n)
+
+      ng0 = 0
+      ng1 = 0
+      IF (type_min(n) == nmin(n)) ng0 = ng
+      IF (type_max(n) == nmax(n)) ng1 = ng
+
+      n_local(n) = type_max(n) - type_min(n) + ng0 + ng1 + 1
+      start(n) = type_min(n) - new_min(n) + ng - ng0 + 1
+
+      n = 1
+      type_min(n) = new_min(n)
+      type_max(n) = new_min(n)
+
+      ! Find the old processor on which the new x_min resides
+      ! This could be sped up by using bisection.
+      DO iproc = 1, nprocs(n) - 1
+        IF (old_cell_min1(iproc) <= new_min(n) &
+            .AND. old_cell_max1(iproc) >= new_min(n)) EXIT
+      END DO
+
+      DO WHILE(type_max(n) <= new_max(n))
+        coord(cdim(n)) = iproc - 1
+        type_max(n) = old_cell_max1(iproc)
+        IF (type_max(n) > new_max(n)) type_max(n) = new_max(n)
+
+        ng0 = 0
+        ng1 = 0
+        IF (type_min(n) == nmin(n)) ng0 = ng
+        IF (type_max(n) == nmax(n)) ng1 = ng
+
+        n_local(n) = type_max(n) - type_min(n) + ng0 + ng1 + 1
+        start(n) = type_min(n) - new_min(n) + ng - ng0 + 1
+
+        CALL MPI_CART_RANK(old_comm, coord, irank, errcode)
+
+        IF (rank /= irank) THEN
+          recvtypes(irank) = create_2d_array_subtype(basetype, n_local, &
+              n_global, start)
+        ELSE
+          ! New domain is on the same processor as the old domain.
+          ! Just copy the region rather than using MPI.
+          DO i = 1, nd
+            new_0(i) = start(i) - ng
+          END DO
+          DO j = old_0(2), old_1(2)
+            jnew = new_0(2) + j - old_0(2)
+            DO i = old_0(1), old_1(1)
+              inew = new_0(1) + i - old_0(1)
+              field_out(inew,jnew) = field_in(i,j)
+            END DO
+          END DO
+        END IF
+
+        n = 1
+        IF (type_max(n) == new_max(n)) EXIT
+        iproc = iproc + 1
+        type_min(n) = old_cell_min1(iproc)
+      END DO
+
+      n = 2
+      IF (type_max(n) == new_max(n)) EXIT
+      jproc = jproc + 1
+      type_min(n) = old_cell_min2(jproc)
+    END DO
+
+    CALL redblack(field_in, field_out, sendtypes, recvtypes)
+
+    DO i = 0, nproc - 1
+      IF (sendtypes(i) /= 0) CALL MPI_TYPE_FREE(sendtypes(i), errcode)
+      IF (recvtypes(i) /= 0) CALL MPI_TYPE_FREE(recvtypes(i), errcode)
+    END DO
+
+    DEALLOCATE(sendtypes)
+    DEALLOCATE(recvtypes)
+
+  END SUBROUTINE redistribute_field_2d_cmplx_r4
 
   SUBROUTINE get_load_x(load)
 

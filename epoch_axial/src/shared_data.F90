@@ -307,6 +307,9 @@ MODULE shared_data
   TYPE averaged_data_block
     REAL(num), DIMENSION(:,:,:), POINTER :: array
     REAL(r4), DIMENSION(:,:,:), POINTER :: r4array
+    ! add this ONLY for mode fields (we’ll use it there)
+    COMPLEX(num), DIMENSION(:,:,:), POINTER :: zarray
+    COMPLEX(r4), DIMENSION(:,:,:), POINTER :: r4zarray
     REAL(num) :: real_time
     INTEGER :: species_sum, n_species
     LOGICAL :: started, dump_single
@@ -477,6 +480,7 @@ MODULE shared_data
   COMPLEX(num), ALLOCATABLE, DIMENSION(:,:,:) :: bxm_old, brm_old, btm_old
   COMPLEX(num), ALLOCATABLE, DIMENSION(:,:,:) :: jxm_old, jrm_old, jtm_old
   REAL(r4), ALLOCATABLE, DIMENSION(:,:) :: r4array
+  COMPLEX(r4), ALLOCATABLE, DIMENSION(:,:,:) :: r4zarray
   INTEGER, ALLOCATABLE, DIMENSION(:,:) :: npart_per_cell_array
   LOGICAL :: pre_loading
 

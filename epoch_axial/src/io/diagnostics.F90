@@ -1472,9 +1472,17 @@ CONTAINS
       IF (time >= io_block_list(io)%average_time_start) THEN
         DO id = 1, num_vars_to_dump
           av_block = averaged_var_block(id)
-          IF (IAND(io_block_list(io)%dumpmask(id), c_io_averaged) /= 0) THEN
-            CALL average_field(id, io_block_list(av_block)%averaged_data(id))
-          END IF
+          ! Check for exm, erm or etm to use special averaging routine
+          SELECT CASE (id)
+          CASE (c_dump_exm, c_dump_erm, c_dump_etm)
+            IF (IAND(io_block_list(io)%dumpmask(id), c_io_averaged) /= 0) THEN
+              CALL average_mode_field(id, io_block_list(av_block)%averaged_data(id))
+            END IF
+          CASE DEFAULT
+            IF (IAND(io_block_list(io)%dumpmask(id), c_io_averaged) /= 0) THEN
+              CALL average_field(id, io_block_list(av_block)%averaged_data(id))
+            END IF
+          END SELECT
         END DO
       END IF
     END DO
@@ -1810,6 +1818,36 @@ CONTAINS
 
   END SUBROUTINE average_field
 
+  SUBROUTINE average_mode_field(ioutput, avg)
+
+    INTEGER, INTENT(IN) :: ioutput
+    TYPE(averaged_data_block) :: avg
+
+    avg%real_time = avg%real_time + dt
+    avg%started = .TRUE.
+
+    IF (avg%dump_single) THEN
+      SELECT CASE(ioutput)
+      CASE(c_dump_exm)
+        avg%r4zarray(:,:,:) = avg%r4zarray(:,:,:) + CMPLX( exm, r4) * REAL(dt, r4)
+      CASE(c_dump_erm)
+        avg%r4zarray(:,:,:) = avg%r4zarray(:,:,:) + CMPLX( erm, r4) * REAL(dt, r4)
+      CASE(c_dump_etm)
+        avg%r4zarray(:,:,:) = avg%r4zarray(:,:,:) + CMPLX( etm, r4) * REAL(dt, r4)
+      END SELECT
+    ELSE
+      SELECT CASE(ioutput)
+      CASE(c_dump_exm)
+        avg%zarray(:,:,:) = avg%zarray(:,:,:) + exm * dt
+      CASE(c_dump_erm)
+        avg%zarray(:,:,:) = avg%zarray(:,:,:) + erm * dt
+      CASE(c_dump_etm)
+        avg%zarray(:,:,:) = avg%zarray(:,:,:) + etm * dt
+      END SELECT
+    END IF
+    
+
+  END SUBROUTINE average_mode_field
 
 
   SUBROUTINE write_field(id, code, block_id, name, units, stagger, array)
@@ -2041,11 +2079,16 @@ CONTAINS
     INTEGER, INTENT(IN) :: stagger
     REAL(num), DIMENSION(1-ng:,1-ng:,0:), INTENT(IN) :: array
     REAL(num), ALLOCATABLE :: array_print(:,:,:)
+    REAL(num), ALLOCATABLE :: array_tmp(:,:,:)
     INTEGER :: mask, dumped
     INTEGER :: subtype, subarray
     INTEGER :: dims(3)
-    LOGICAL :: current_dump
-    LOGICAL :: convert, restart_id, normal_id
+    LOGICAL :: current_dump 
+    LOGICAL :: convert, restart_id, normal_id, unaveraged_id
+
+    TYPE(averaged_data_block), POINTER :: avg
+    TYPE(io_block_type),      POINTER :: iob
+    INTEGER :: io
 
     mask = iomask(id)
 
@@ -2053,6 +2096,8 @@ CONTAINS
     normal_id = IAND(IAND(code, mask), IOR(c_io_always, c_io_full)) /= 0
     ! This is a restart dump and a restart variable
     restart_id = IAND(IAND(code, mask), c_io_restartable) /= 0
+    ! The variable is either averaged or has snapshot specified
+    unaveraged_id = IAND(mask, c_io_snapshot) /= 0
 
     convert = IAND(mask, c_io_dump_single) /= 0 .AND. .NOT.restart_id
 
@@ -2082,31 +2127,113 @@ CONTAINS
       END IF
     END IF
 
-    ! In cylindrical EPOCH, values on the r=0 axis are important, but ir=0 is
-    ! not usually printed. We must stagger the indices on the array to print
-    ALLOCATE(array_print(1-ng:nx+ng,1-ng:ny+ng,0:n_mode-1))
-    IF (stagger == c_stagger_exm .OR. stagger == c_stagger_etm) THEN
-      array_print = 0
-      IF (.NOT. current_dump) THEN 
-        array_print(:,2-ng:ny+ng,:) = array(:,1-ng:ny+ng-1,:)
-      ELSE
-        array_print(:,2-jng:ny+jng,:) = array(:,1-jng:ny+jng-1,:)
+    IF (restart_id .OR. unaveraged_id) THEN
+      ! In cylindrical EPOCH, values on the r=0 axis are important, but ir=0 is
+      ! not usually printed. We must stagger the indices on the array to print
+      ALLOCATE(array_print(1-ng:nx+ng,1-ng:ny+ng,0:n_mode-1))
+      IF (stagger == c_stagger_exm .OR. stagger == c_stagger_etm) THEN
+        array_print = 0
+        IF (.NOT. current_dump) THEN 
+          array_print(:,2-ng:ny+ng,:) = array(:,1-ng:ny+ng-1,:)
+        ELSE
+          array_print(:,2-jng:ny+jng,:) = array(:,1-jng:ny+jng-1,:)
+        END IF
+      ELSE 
+        array_print = array
       END IF
-    ELSE 
-      array_print = array
+
+      dumped_skip_dir = 0
+      dumped = 1
+
+      IF (IAND(mask, code) == 0) RETURN
+      
+      CALL sdf_write_plain_variable(sdf_handle, TRIM(block_id), &
+          TRIM(name), TRIM(units), dims, stagger, 'mode_grid', array_print, &
+          subtype, subarray, convert)
+      dump_field_grid = .TRUE.
+      DEALLOCATE(array_print)
     END IF
 
-    dumped_skip_dir = 0
-    dumped = 1
+    ! Dump averages
+    DO io = 1, n_io_blocks
+      iob => io_block_list(io)
+      IF (.NOT.iob%dump) CYCLE
 
-    IF (IAND(mask, code) == 0) RETURN
+      IF (IAND(mask, c_io_averaged) == 0) CYCLE
+      IF (io /= averaged_var_block(id)) CYCLE
 
-    CALL sdf_write_plain_variable(sdf_handle, TRIM(block_id), &
-        TRIM(name), TRIM(units), dims, stagger, 'mode_grid', array_print, &
-        subtype, subarray, convert)
-    dump_field_grid = .TRUE.
-    DEALLOCATE(array_print)
+      avg => iob%averaged_data(id)
+      ! Guards – if any hit, SKIP safely (prevents segfault)
+      IF (.NOT. ASSOCIATED(avg%zarray) .AND. .NOT. ASSOCIATED(avg%r4zarray)) CYCLE
+      IF (.NOT. avg%started) CYCLE
+      IF (avg%real_time <= 0.0_num) CYCLE
 
+      ! Pick on-disk precision exactly like the snapshot path
+      IF (convert) THEN
+        subtype  = subtype_mode_r4
+        subarray = subarray_mode_r4
+      ELSE
+        subtype  = subtype_mode
+        subarray = subarray_mode
+      END IF
+
+      ALLOCATE(array_print(1-ng:nx+ng,1-ng:ny+ng,0:n_mode-1))
+      ALLOCATE(array_tmp(1-ng:nx+ng,1-ng:ny+ng,0:n_mode-1))
+      IF (INDEX(block_id,'_imag')>0 .OR. INDEX(name,'/imag')>0) THEN
+        ! Imaginary part
+        IF (avg%dump_single) THEN
+          array_tmp = AIMAG(avg%r4zarray) / REAL(avg%real_time, r4)
+        ELSE
+          array_tmp = AIMAG(avg%zarray) / avg%real_time
+        END IF
+        IF (stagger == c_stagger_exm .OR. stagger == c_stagger_etm) THEN
+          array_print = 0
+          IF (.NOT. current_dump) THEN
+            array_print(:,2-ng:ny+ng,:) = array_tmp(:,1-ng:ny+ng-1,:)
+          ELSE
+            array_print(:,2-jng:ny+jng,:) = array_tmp(:,1-jng:ny+jng-1,:)
+          END IF
+        ELSE
+          array_print = array_tmp
+        END IF
+        DEALLOCATE(array_tmp)
+      ELSE
+        ! Real part
+        IF (avg%dump_single) THEN
+          array_tmp = REAL(avg%r4zarray) / REAL(avg%real_time, r4)
+        ELSE
+          array_tmp = REAL(avg%zarray) / avg%real_time
+        END IF
+        IF (stagger == c_stagger_exm .OR. stagger == c_stagger_etm) THEN
+          array_print = 0
+          IF (.NOT. current_dump) THEN
+            array_print(:,2-ng:ny+ng,:) = array_tmp(:,1-ng:ny+ng-1,:)
+          ELSE
+            array_print(:,2-jng:ny+jng,:) = array_tmp(:,1-jng:ny+jng-1,:)
+          END IF
+        ELSE
+          array_print = array_tmp
+        END IF
+        DEALLOCATE(array_tmp)
+      END IF
+      
+      CALL sdf_write_plain_variable(sdf_handle, TRIM(block_id)//'_averaged', TRIM(name)//'_averaged', &
+           TRIM(units), dims, stagger, 'mode_grid', array_print, subtype, subarray)
+      DEALLOCATE(array_print)
+
+      dump_field_grid = .TRUE.
+      IF (INDEX(block_id,'_imag')>0 .OR. INDEX(name,'/imag')>0) THEN
+        ! Reset accumulators for this id
+        IF (ASSOCIATED(avg%r4zarray)) THEN
+          avg%r4zarray    = 0.0_num
+        ELSE IF (ASSOCIATED(avg%zarray)) THEN
+          avg%zarray    = 0.0_num
+        END IF
+        avg%real_time = 0.0_num
+        avg%started   = .FALSE.
+      END IF
+    END DO
+      
   END SUBROUTINE write_mode_field
 
 
